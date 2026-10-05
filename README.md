@@ -62,48 +62,49 @@ Home Assistant's built-in weather card and the entity popup work too, but they h
 
 ### Weather alert tiles
 
+One tile per alert level, each shown only for its own level. This uses Home Assistant's built-in card visibility option, no plugin needed. In a sections dashboard you can also set it on the **Visibility** tab of each card. That tab is missing for cards nested inside a grid or stack, so add these tiles as separate cards.
+
 ```yaml
-type: grid
-columns: 1
-cards:
-  - type: tile
-    entity: sensor.weerbericht_weather_alert_text
-    name: No warnings
-    icon: mdi:check-circle-outline
-    color: green
-    hide_state: true
-    visibility:
-      - condition: state
-        entity: sensor.weerbericht_weather_alert
-        state: none
-  - type: tile
-    entity: sensor.weerbericht_weather_alert_text
-    name: Weather warning
-    icon: mdi:alert-outline
-    color: yellow
-    visibility:
-      - condition: state
-        entity: sensor.weerbericht_weather_alert
-        state: yellow
-  - type: tile
-    entity: sensor.weerbericht_weather_alert_text
-    name: Dangerous weather
-    icon: mdi:alert-outline
-    color: deep-orange
-    visibility:
-      - condition: state
-        entity: sensor.weerbericht_weather_alert
-        state: orange
-  - type: tile
-    entity: sensor.weerbericht_weather_alert_text
-    name: Red alert
-    icon: mdi:alert-outline
-    color: red
-    visibility:
-      - condition: state
-        entity: sensor.weerbericht_weather_alert
-        state: red
+- type: tile
+  entity: sensor.weerbericht_weather_alert_text
+  name: No warnings
+  icon: mdi:check-circle-outline
+  color: green
+  hide_state: true
+  visibility:
+    - condition: state
+      entity: sensor.weerbericht_weather_alert
+      state: none
+- type: tile
+  entity: sensor.weerbericht_weather_alert_text
+  name: Weather warning
+  icon: mdi:alert-outline
+  color: yellow
+  visibility:
+    - condition: state
+      entity: sensor.weerbericht_weather_alert
+      state: yellow
+- type: tile
+  entity: sensor.weerbericht_weather_alert_text
+  name: Dangerous weather
+  icon: mdi:alert-outline
+  color: deep-orange
+  visibility:
+    - condition: state
+      entity: sensor.weerbericht_weather_alert
+      state: orange
+- type: tile
+  entity: sensor.weerbericht_weather_alert_text
+  name: Red alert
+  icon: mdi:alert-outline
+  color: red
+  visibility:
+    - condition: state
+      entity: sensor.weerbericht_weather_alert
+      state: red
 ```
+
+The tile state shows the KNMI warning text. The `hide_state` on the green tile hides "Geen waarschuwingen".
 
 ### Rain radar
 
