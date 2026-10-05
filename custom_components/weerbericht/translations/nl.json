@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Weerbericht",
+        "description": "Weersverwachting voor een locatie in Nederland, rechtstreeks uit de backend van de KNMI-app.",
+        "data": {
+          "name": "Naam",
+          "latitude": "Breedtegraad",
+          "longitude": "Lengtegraad",
+          "region": "Waarschuwingsregio (provincie)"
+        }
+      }
+    },
+    "error": {
+      "outside_grid": "Deze locatie ligt buiten het verwachtingsraster van het KNMI (Nederland).",
+      "cannot_connect": "De backend van de KNMI-app is niet bereikbaar."
+    },
+    "abort": {
+      "already_configured": "Deze locatie en regio zijn al geconfigureerd."
+    }
+  },
+  "entity": {
+    "camera": {
+      "radar": {
+        "name": "Neerslagradar"
+      }
+    },
+    "sensor": {
+      "temperature": {
+        "name": "Temperatuur"
+      },
+      "temperature_max_today": {
+        "name": "Maximum vandaag"
+      },
+      "temperature_min_today": {
+        "name": "Minimum vandaag"
+      },
+      "precipitation_today": {
+        "name": "Neerslag vandaag"
+      },
+      "sunshine_today": {
+        "name": "Zon vandaag"
+      },
+      "uv_index": {
+        "name": "UV-index"
+      },
+      "heat_index": {
+        "name": "Hittekracht"
+      },
+      "alert_level": {
+        "name": "Weeralarm",
+        "state": {
+          "none": "Geen",
+          "yellow": "Geel",
+          "orange": "Oranje",
+          "red": "Rood"
+        }
+      },
+      "alert_text": {
+        "name": "Weeralarm tekst"
+      },
+      "weather_text": {
+        "name": "Weerbeschrijving"
+      }
+    }
+  }
+}

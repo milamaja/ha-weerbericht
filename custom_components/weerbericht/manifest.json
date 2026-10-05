@@ -1,0 +1,13 @@
+{
+  "domain": "weerbericht",
+  "name": "Weerbericht",
+  "codeowners": ["@milamaja"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "lovelace"],
+  "documentation": "https://github.com/milamaja/ha-weerbericht",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/milamaja/ha-weerbericht/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

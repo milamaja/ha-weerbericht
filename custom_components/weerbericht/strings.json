@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Weerbericht",
+        "description": "Weather forecast for a location in the Netherlands, straight from the KNMI app backend.",
+        "data": {
+          "name": "Name",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "region": "Warning region (province)"
+        }
+      }
+    },
+    "error": {
+      "outside_grid": "This location is outside the KNMI forecast grid (the Netherlands).",
+      "cannot_connect": "Could not reach the KNMI app backend."
+    },
+    "abort": {
+      "already_configured": "This location and region are already configured."
+    }
+  },
+  "entity": {
+    "camera": {
+      "radar": {
+        "name": "Rain radar"
+      }
+    },
+    "sensor": {
+      "temperature": {
+        "name": "Temperature"
+      },
+      "temperature_max_today": {
+        "name": "Maximum today"
+      },
+      "temperature_min_today": {
+        "name": "Minimum today"
+      },
+      "precipitation_today": {
+        "name": "Precipitation today"
+      },
+      "sunshine_today": {
+        "name": "Sunshine today"
+      },
+      "uv_index": {
+        "name": "UV index"
+      },
+      "heat_index": {
+        "name": "Heat index"
+      },
+      "alert_level": {
+        "name": "Weather alert",
+        "state": {
+          "none": "None",
+          "yellow": "Yellow",
+          "orange": "Orange",
+          "red": "Red"
+        }
+      },
+      "alert_text": {
+        "name": "Weather alert text"
+      },
+      "weather_text": {
+        "name": "Weather description"
+      }
+    }
+  }
+}

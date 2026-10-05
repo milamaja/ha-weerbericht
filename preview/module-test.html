@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><title>module test</title></head><body>
+<pre id="out">loading</pre>
+<script>window.addEventListener('error', e => document.getElementById('out').textContent = 'ERROR: ' + e.message);</script>
+<script type="module" src="../custom_components/weerbericht/frontend/weerbericht-card.js"></script>
+<script type="module">
+const out = document.getElementById('out');
+const C = customElements.get('weerbericht-card');
+let msg = 'defined: ' + !!C;
+try {
+  const el = document.createElement('weerbericht-card');
+  el.setConfig({type: 'custom:weerbericht-card', entity: 'weather.weerbericht', forecast_type: 'daily', name: ' ', forecast_slots: 5, grid_options: {columns: 'full'}, tap_action: {action: 'navigate', navigation_path: '/x'}, show_current: true, show_forecast: true});
+  msg += ' | setConfig ok';
+} catch (e) { msg += ' | setConfig threw: ' + e.message; }
+out.textContent = msg;
+</script></body></html>

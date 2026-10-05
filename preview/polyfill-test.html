@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><title>polyfill test</title></head><body>
+<pre id="out">running</pre>
+<script type="module">
+const out = document.getElementById('out');
+const log = (m) => out.textContent += '\n' + m;
+await import('../custom_components/weerbericht/frontend/weerbericht-card.js?t=' + Date.now());
+log('after card import, native get: ' + !!customElements.get('weerbericht-card'));
+await import('https://cdn.jsdelivr.net/npm/@webcomponents/scoped-custom-element-registry@0.0.10/scoped-custom-element-registry.min.js');
+log('polyfill installed: ' + !!window.CustomElementRegistryPolyfill + ', get right after: ' + !!customElements.get('weerbericht-card'));
+await new Promise(r => setTimeout(r, 1500));
+log('get after 1.5 s: ' + !!customElements.get('weerbericht-card'));
+try {
+  const el = document.createElement('weerbericht-card');
+  el.setConfig({ type: 'custom:weerbericht-card', entity: 'weather.weerbericht' });
+  log('createElement + setConfig ok, has getGridOptions: ' + (typeof el.getGridOptions));
+} catch (e) { log('create failed: ' + e.message); }
+</script></body></html>
