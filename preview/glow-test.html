@@ -20,7 +20,9 @@ const root=document.createElement('hui-root'); document.body.appendChild(root);
 await new Promise(r=>setTimeout(r,1200));
 const card=document.createElement('weerbericht-card');
 // Like Home Assistant: config and hass are set BEFORE the card is attached.
-card.setConfig({entity:'weather.weerbericht', alert_glow:true, show_forecast:false});
+const q=new URLSearchParams(location.search); const extra={};
+for (const k of ['size','strength','pulse']) if (q.has(k)) extra['alert_glow_'+k]=q.get(k);
+card.setConfig({entity:'weather.weerbericht', alert_glow:true, show_forecast:false, ...extra});
 card.hass={language:'en',locale:{language:'en'},config:{time_zone:'Europe/Amsterdam'},localize:()=>'',
   states:{'weather.weerbericht':{entity_id:'weather.weerbericht',state:'fog',attributes:{temperature:9,alert_level:'yellow',raw_condition:'fog',friendly_name:'Thuis'}}},
   connection:{subscribeMessage:()=>Promise.resolve(()=>{})}, callWS:()=>Promise.resolve()};

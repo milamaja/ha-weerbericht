@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.2.0";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -165,6 +165,21 @@ const STYLE = `
 const GLOW_CLASS = "weerbericht-alert-glow";
 const GLOW_LEVELS = ["yellow", "orange", "red"];
 const GLOW_RGB = { yellow: "255, 214, 0", orange: "255, 140, 0", red: "235, 35, 35" };
+// Glow look, configurable per card; the defaults are the original look.
+const GLOW_DEFAULTS = { size: 32, strength: 60, pulse: 3 };
+function glowStyle(cfg) {
+  const num = (v, def, min, max) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  const pulseRaw = cfg?.alert_glow_pulse;
+  return {
+    size: num(cfg?.alert_glow_size, GLOW_DEFAULTS.size, 4, 200),
+    strength: num(cfg?.alert_glow_strength, GLOW_DEFAULTS.strength, 5, 100),
+    pulse: pulseRaw === false ? 0 : num(pulseRaw, GLOW_DEFAULTS.pulse, 0, 30),
+  };
+}
+
 const glowOwners = new Map();
 let glowEl = null;
 let glowTimer = null;
@@ -240,15 +255,31 @@ function updateGlow() {
     const background = parts.view.querySelector(":scope > hui-view-background");
     if (background) background.after(glowEl);
     else parts.view.prepend(glowEl);
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      glowEl.animate([{ opacity: 0.4 }, { opacity: 0.85 }, { opacity: 0.4 }], {
-        duration: 3000, iterations: Infinity, easing: "ease-in-out",
-      });
-    }
     glowTimer = setInterval(positionGlow, 500);
   }
   const rgb = GLOW_RGB[best];
-  glowEl.style.boxShadow = `inset 0 0 32px 8px rgba(${rgb}, 0.6), inset 0 0 6px 2px rgba(${rgb}, 0.75)`;
+  const look = glowStyle(anchor._config);
+  const a = look.strength / 100;
+  const inner = Math.min(1, a * 1.25);
+  const spread = Math.round(look.size / 4);
+  const edge = Math.max(2, Math.round(look.size / 5));
+  glowEl.style.boxShadow =
+    `inset 0 0 ${look.size}px ${spread}px rgba(${rgb}, ${a}), ` +
+    `inset 0 0 ${edge}px ${Math.max(1, Math.round(edge / 3))}px rgba(${rgb}, ${inner})`;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pulse = reduced ? 0 : look.pulse;
+  if (glowEl._pulse !== pulse) {
+    glowEl.getAnimations().forEach((anim) => anim.cancel());
+    glowEl._pulse = pulse;
+    if (pulse > 0) {
+      glowEl.style.opacity = "";
+      glowEl.animate([{ opacity: 0.4 }, { opacity: 0.85 }, { opacity: 0.4 }], {
+        duration: pulse * 1000, iterations: Infinity, easing: "ease-in-out",
+      });
+    } else {
+      glowEl.style.opacity = "0.85";
+    }
+  }
   glowEl.dataset.level = best;
   positionGlow();
 }

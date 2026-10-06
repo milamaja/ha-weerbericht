@@ -73,6 +73,25 @@ alert_glow: true
 - It only shows while a dashboard with such a card is open.
 - `alert_entity: sensor.your_alert_sensor` takes the level from another entity, and `alert_glow_test: yellow` (or `orange`, `red`) shows the glow for trying it out. Remove the test option afterwards.
 
+You can tune the look:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `alert_glow_size` | `32` | How far the glow reaches into the dashboard, in pixels (4 to 200) |
+| `alert_glow_strength` | `60` | How strong the colour is, in percent (5 to 100) |
+| `alert_glow_pulse` | `3` | Seconds per pulse (up to 30). `0` or `false` gives a steady glow |
+
+```yaml
+type: custom:weerbericht-card
+entity: weather.weerbericht
+alert_glow: true
+alert_glow_size: 48
+alert_glow_strength: 40
+alert_glow_pulse: 5
+```
+
+When several cards with a glow are on screen, the settings of the card with the highest warning level are used. Devices set to reduce motion always get a steady glow.
+
 Home Assistant's built-in weather card and the entity popup work too, but they have no pictures for showers with sun, and they draw partly cloudy with a sun even at night. The entity always reports the real KNMI condition; only the Weerbericht card and the entity icon show the moon behind a cloud.
 
 ### Weather alert tiles
