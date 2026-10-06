@@ -272,12 +272,81 @@ class WeerberichtCard extends HTMLElement {
     this._width = 0;
   }
 
+  // Visual editor: Home Assistant draws this form with its own controls.
+  static getConfigForm() {
+    const nl = /^nl/i.test(document.querySelector("home-assistant")?.hass?.locale?.language || navigator.language || "");
+    const t = (en, dutch) => (nl ? dutch : en);
+    const LABELS = {
+      entity: t("Weather entity", "Weerentiteit"),
+      name: t("Name", "Naam"),
+      forecast_type: t("Forecast", "Verwachting"),
+      forecast_slots: t("Number of forecast items", "Aantal verwachtingen"),
+      show_current: t("Show current weather", "Huidig weer tonen"),
+      show_forecast: t("Show forecast", "Verwachting tonen"),
+      round_temperature: t("Round temperatures", "Temperaturen afronden"),
+      alert_glow: t("Glow during weather warnings", "Gloed bij weerwaarschuwingen"),
+      alert_entity: t("Warning level from another entity (optional)", "Waarschuwingsniveau uit andere entiteit (optioneel)"),
+      alert_glow_size: t("Glow size", "Grootte van de gloed"),
+      alert_glow_strength: t("Glow strength", "Sterkte van de gloed"),
+      alert_glow_pulse: t("Seconds per pulse (0 = steady)", "Seconden per puls (0 = vast)"),
+      alert_glow_test: t("Test colour (remove after trying)", "Testkleur (weghalen na proberen)"),
+      tap_action: t("Tap action", "Actie bij tikken"),
+    };
+    const HELPERS = {
+      alert_glow: t(
+        "Yellow, orange or red glow along the dashboard edges while a KNMI warning is out.",
+        "Gele, oranje of rode gloed langs de randen van het dashboard zolang er een KNMI-waarschuwing is."),
+      forecast_slots: t("Empty: as many as fit.", "Leeg: zoveel als er passen."),
+    };
+    return {
+      schema: [
+        { name: "entity", required: true, selector: { entity: { domain: "weather" } } },
+        { name: "name", selector: { text: {} } },
+        {
+          type: "grid", name: "", schema: [
+            { name: "forecast_type", selector: { select: { mode: "dropdown", options: [
+              { value: "daily", label: t("Daily", "Per dag") },
+              { value: "hourly", label: t("Hourly", "Per uur") },
+            ] } } },
+            { name: "forecast_slots", selector: { number: { min: 1, max: 15, mode: "box" } } },
+          ],
+        },
+        {
+          type: "grid", name: "", schema: [
+            { name: "show_current", default: true, selector: { boolean: {} } },
+            { name: "show_forecast", default: true, selector: { boolean: {} } },
+            { name: "round_temperature", selector: { boolean: {} } },
+          ],
+        },
+        {
+          type: "expandable", name: "", flatten: true, icon: "mdi:alert-outline",
+          title: t("Weather warning glow", "Gloed bij weerwaarschuwing"),
+          schema: [
+            { name: "alert_glow", selector: { boolean: {} } },
+            { name: "alert_glow_size", selector: { number: { min: 4, max: 200, step: 1, mode: "slider", unit_of_measurement: "px" } } },
+            { name: "alert_glow_strength", selector: { number: { min: 5, max: 100, step: 5, mode: "slider", unit_of_measurement: "%" } } },
+            { name: "alert_glow_pulse", selector: { number: { min: 0, max: 30, step: 0.5, mode: "slider", unit_of_measurement: "s" } } },
+            { name: "alert_entity", selector: { entity: { domain: "sensor" } } },
+            { name: "alert_glow_test", selector: { select: { mode: "dropdown", options: [
+              { value: "yellow", label: t("Yellow", "Geel") },
+              { value: "orange", label: t("Orange", "Oranje") },
+              { value: "red", label: t("Red", "Rood") },
+            ] } } },
+          ],
+        },
+        { name: "tap_action", selector: { ui_action: {} } },
+      ],
+      computeLabel: (schema) => LABELS[schema.name],
+      computeHelper: (schema) => HELPERS[schema.name],
+    };
+  }
+
   static getStubConfig(hass) {
     const entity =
       Object.keys(hass.states).find((e) => e.startsWith("weather.") &&
         hass.states[e].attributes.attribution === "Bron: KNMI") ||
       Object.keys(hass.states).find((e) => e.startsWith("weather.")) || "";
-    return { entity, forecast_type: "daily" };
+    return { entity, forecast_type: "daily", show_current: true, show_forecast: true };
   }
 
   _fail(where, err) {
