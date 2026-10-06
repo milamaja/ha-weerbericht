@@ -24,6 +24,8 @@ DOMAIN = "weerbericht"
 ATTRIBUTION = "Bron: KNMI"
 
 CONF_REGION = "region"
+CONF_WARNING_LANGUAGE = "warning_language"
+WARNING_LANGUAGES = ["nl", "en"]
 
 BASE_URL = "https://api.app.knmi.cloud"
 REQUEST_TIMEOUT = 20
@@ -59,13 +61,24 @@ ALERT_REGIONS = {
     "10": "Overijssel",
     "11": "Utrecht",
     "12": "Waddeneilanden",
-    "13": "IJsselmeer",
+    "13": "Waddenzee",
     "14": "Zeeland",
     "15": "Zuid-Holland",
 }
 
 ALERT_LEVELS = ["none", "yellow", "orange", "red"]
-NO_ALERT_TEXT = "Geen waarschuwingen"
+NO_ALERT_TEXT = {"nl": "Geen waarschuwingen", "en": "No warnings"}
+
+# English warning texts come from MeteoAlarm (the European warning service KNMI
+# also publishes to), only fetched when English is chosen and a warning is out.
+METEOALARM_URL = "https://feeds.meteoalarm.org/api/v1/warnings/feeds-netherlands"
+METEOALARM_TIMEOUT = 45
+# Warning region id -> MeteoAlarm EMMA_ID
+REGION_EMMA = {
+    "1": "NL018", "2": "NL008", "3": "NL017", "4": "NL014", "5": "NL007",
+    "6": "NL807", "7": "NL012", "8": "NL013", "9": "NL011", "10": "NL016",
+    "11": "NL015", "12": "NL019", "13": "NL806", "14": "NL010", "15": "NL009",
+}
 
 # KNMI app weatherType codes -> Home Assistant conditions. Codes come in
 # day/night pairs (for example 1372 "zonnig" and 1373 "onbewolkt" at night).

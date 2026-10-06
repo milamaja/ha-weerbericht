@@ -21,6 +21,8 @@ from .const import (
     GRID_STEPS_LON,
     GRID_SW_LAT,
     GRID_SW_LON,
+    METEOALARM_TIMEOUT,
+    METEOALARM_URL,
     REQUEST_TIMEOUT,
     USER_AGENT,
 )
@@ -86,3 +88,17 @@ class WeerberichtClient:
         return await self._get(
             "weather/detail", {"location": cell, "region": region, "date": date}
         )
+
+    async def meteoalarm(self) -> dict[str, Any]:
+        """All current MeteoAlarm warnings for the Netherlands (large: about 1 MB)."""
+        try:
+            async with self._session.get(
+                METEOALARM_URL,
+                headers={"User-Agent": USER_AGENT},
+                timeout=aiohttp.ClientTimeout(total=METEOALARM_TIMEOUT),
+            ) as resp:
+                if resp.status >= 400:
+                    raise WeerberichtConnectionError(f"meteoalarm: HTTP {resp.status}")
+                return await resp.json(content_type=None)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            raise WeerberichtConnectionError(f"meteoalarm: {err}") from err

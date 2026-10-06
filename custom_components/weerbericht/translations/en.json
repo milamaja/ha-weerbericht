@@ -64,5 +64,24 @@
         "name": "Weather description"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "description": "Choose the language of the weather warning texts. Dutch texts come straight from the KNMI app; English texts come from MeteoAlarm, the European warning service KNMI also publishes to. The warning level is always the KNMI level.",
+        "data": {
+          "warning_language": "Language of the warnings"
+        }
+      }
+    }
+  },
+  "selector": {
+    "warning_language": {
+      "options": {
+        "nl": "Dutch (Nederlands)",
+        "en": "English"
+      }
+    }
   }
 }

@@ -131,9 +131,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeerberichtConfigEntry) 
     )
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def _async_options_updated(hass: HomeAssistant, entry: WeerberichtConfigEntry) -> None:
+    """Apply a changed warning language."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WeerberichtConfigEntry) -> bool:

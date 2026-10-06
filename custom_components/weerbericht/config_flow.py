@@ -6,8 +6,9 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME
+from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -18,7 +19,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import WeerberichtClient, WeerberichtError, grid_cell
-from .const import ALERT_REGIONS, CONF_REGION, DOMAIN
+from .const import ALERT_REGIONS, CONF_REGION, CONF_WARNING_LANGUAGE, DOMAIN, WARNING_LANGUAGES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +28,12 @@ class WeerberichtConfigFlow(ConfigFlow, domain=DOMAIN):
     """Ask for a name, a coordinate and the warning region."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Settings that can be changed later."""
+        return WeerberichtOptionsFlow()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -78,3 +85,26 @@ class WeerberichtConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
             errors=errors,
         )
+
+
+class WeerberichtOptionsFlow(OptionsFlow):
+    """Choose the language of the warning texts."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        current = self.config_entry.options.get(CONF_WARNING_LANGUAGE, "nl")
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_WARNING_LANGUAGE, default=current): SelectSelector(
+                    SelectSelectorConfig(
+                        options=WARNING_LANGUAGES,
+                        translation_key=CONF_WARNING_LANGUAGE,
+                        mode=SelectSelectorMode.LIST,
+                    )
+                )
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)

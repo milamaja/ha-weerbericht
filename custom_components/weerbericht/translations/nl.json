@@ -64,5 +64,24 @@
         "name": "Weerbeschrijving"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Instellingen",
+        "description": "Kies de taal van de weerwaarschuwingen. Nederlandse teksten komen rechtstreeks uit de KNMI-app; Engelse teksten komen van MeteoAlarm, de Europese waarschuwingsdienst waar het KNMI ook aan levert. Het waarschuwingsniveau is altijd dat van het KNMI.",
+        "data": {
+          "warning_language": "Taal van de waarschuwingen"
+        }
+      }
+    }
+  },
+  "selector": {
+    "warning_language": {
+      "options": {
+        "nl": "Nederlands",
+        "en": "Engels (English)"
+      }
+    }
   }
 }
