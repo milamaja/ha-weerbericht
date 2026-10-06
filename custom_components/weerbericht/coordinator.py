@@ -126,9 +126,14 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         daily: list[dict[str, Any]] = []
         seen_dates: set[str] = set()
+        # The app's days are UTC dates; just after midnight local time the first
+        # one is still yesterday. Never show a day that is already over.
+        today_local = dt_util.now().date()
         for d in summary.get("daily", {}).get("forecast", []):
             date = d["date"]
             seen_dates.add(date[:10])
+            if _local_midnight(date).date() < today_local:
+                continue
             detail = details.get(date, {})
             temp = d.get("temperature") or {}
             precip = d.get("precipitation") or {}
@@ -166,7 +171,7 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for date, tmin, tmax in zip(
             t.get("dates", []), t.get("minTemperatures", []), t.get("maxTemperatures", [])
         ):
-            if date[:10] in seen_dates:
+            if date[:10] in seen_dates or _local_midnight(date).date() < today_local:
                 continue
             daily.append(
                 {

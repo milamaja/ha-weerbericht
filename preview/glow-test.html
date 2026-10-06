@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><title>glow test</title>
+<style>body{margin:0;background:#111;font-family:Roboto,Arial,sans-serif;color:#e1e1e1}
+.side{position:fixed;left:0;top:0;bottom:0;width:200px;background:#1c1c1c;padding:16px;box-sizing:border-box}</style></head><body>
+<div class="side">Side menu<br><br>Overview<br>Energy<br>Map</div>
+<script type="module">
+await import('../custom_components/weerbericht/frontend/weerbericht-card.js?t=' + Date.now());
+class HuiRoot extends HTMLElement {
+  constructor(){ super(); const r=this.attachShadow({mode:'open'}); r.innerHTML=`<style>
+   .header{position:fixed;left:200px;right:0;top:0;height:56px;background:#1c1c1c;z-index:4;padding:16px;box-sizing:border-box}
+   #view{display:block;margin-left:200px;padding-top:72px;min-height:100vh;background:#111;box-sizing:border-box;padding-left:16px;padding-right:16px}
+   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+   .c{background:#1c1c1c;border-radius:12px;height:120px;display:flex;align-items:center;justify-content:center}
+  </style><div class="header">Home Assistant top bar</div><div id="view"><hui-view-background style="position:absolute;inset:0;z-index:-1;background:#111;display:block"></hui-view-background><div class="grid">
+   <div class="c">button</div><div class="c">button</div><div class="c" id="slot"></div>
+   <div class="c">button</div><div class="c">button</div><div class="c">button</div>
+   <div class="c">button</div><div class="c">button</div><div class="c">button</div></div></div>`; }
+}
+customElements.define('hui-root', HuiRoot);
+const root=document.createElement('hui-root'); document.body.appendChild(root);
+await new Promise(r=>setTimeout(r,1200));
+const card=document.createElement('weerbericht-card');
+// Like Home Assistant: config and hass are set BEFORE the card is attached.
+card.setConfig({entity:'weather.weerbericht', alert_glow:true, show_forecast:false});
+card.hass={language:'en',locale:{language:'en'},config:{time_zone:'Europe/Amsterdam'},localize:()=>'',
+  states:{'weather.weerbericht':{entity_id:'weather.weerbericht',state:'fog',attributes:{temperature:9,alert_level:'yellow',raw_condition:'fog',friendly_name:'Thuis'}}},
+  connection:{subscribeMessage:()=>Promise.resolve(()=>{})}, callWS:()=>Promise.resolve()};
+root.shadowRoot.getElementById('slot').appendChild(card);
+</script></body></html>

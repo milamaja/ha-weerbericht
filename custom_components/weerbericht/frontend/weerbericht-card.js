@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -157,6 +157,102 @@ const STYLE = `
     font-size: var(--ha-font-size-l, 16px); }
 `;
 
+// Glow along the edges of the dashboard while a KNMI weather warning is active
+// (card option alert_glow). It is drawn BEHIND the cards: the glow element lives
+// inside the dashboard's view container with z-index -1, and the container is
+// made its own stacking context, so it only shows in the gaps and along the
+// edges (placed after Home Assistant's own background layer). It stays below the top bar and right of the side menu.
+const GLOW_CLASS = "weerbericht-alert-glow";
+const GLOW_LEVELS = ["yellow", "orange", "red"];
+const GLOW_RGB = { yellow: "255, 214, 0", orange: "255, 140, 0", red: "235, 35, 35" };
+const glowOwners = new Map();
+let glowEl = null;
+let glowTimer = null;
+
+function dashboardParts(card) {
+  let node = card;
+  for (let i = 0; node && i < 40; i++) {
+    if (node.tagName === "HUI-ROOT" && node.shadowRoot) {
+      const view = node.shadowRoot.getElementById("view");
+      return view ? { view, header: node.shadowRoot.querySelector(".header") } : null;
+    }
+    node = node.parentNode || (node.getRootNode && node.getRootNode().host) || null;
+  }
+  return null;
+}
+
+function removeGlow() {
+  if (glowEl) {
+    glowEl.remove();
+    glowEl = null;
+  }
+  if (glowTimer) {
+    clearInterval(glowTimer);
+    glowTimer = null;
+  }
+}
+
+function positionGlow() {
+  if (!glowEl || !glowEl._parts) return;
+  const { view, header } = glowEl._parts;
+  if (!view.isConnected) {
+    removeGlow();
+    return;
+  }
+  const v = view.getBoundingClientRect();
+  const h = header ? header.getBoundingClientRect() : null;
+  const top = h && h.height > 0 ? Math.max(0, h.bottom) : Math.max(0, v.top);
+  const left = Math.max(0, v.left);
+  const right = Math.min(window.innerWidth, v.right);
+  Object.assign(glowEl.style, {
+    left: left + "px",
+    top: top + "px",
+    width: Math.max(0, right - left) + "px",
+    height: Math.max(0, window.innerHeight - top) + "px",
+  });
+}
+
+function updateGlow() {
+  let best = null;
+  let anchor = null;
+  for (const [card, level] of glowOwners) {
+    if (level && (!best || GLOW_LEVELS.indexOf(level) > GLOW_LEVELS.indexOf(best))) {
+      best = level;
+      anchor = card;
+    }
+  }
+  const parts = best ? dashboardParts(anchor) : null;
+  if (!parts) {
+    removeGlow();
+    return;
+  }
+  if (!glowEl || glowEl._parts.view !== parts.view) {
+    removeGlow();
+    parts.view.style.isolation = "isolate";
+    glowEl = document.createElement("div");
+    glowEl.className = GLOW_CLASS;
+    glowEl.setAttribute("aria-hidden", "true");
+    Object.assign(glowEl.style, { position: "fixed", zIndex: "-1", pointerEvents: "none" });
+    glowEl._parts = parts;
+    // Home Assistant paints the dashboard background as its own z-index -1
+    // layer (hui-view-background). Same layer, later in the page = on top, so
+    // the glow goes right after it: above the background, below the cards.
+    const background = parts.view.querySelector(":scope > hui-view-background");
+    if (background) background.after(glowEl);
+    else parts.view.prepend(glowEl);
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      glowEl.animate([{ opacity: 0.4 }, { opacity: 0.85 }, { opacity: 0.4 }], {
+        duration: 3000, iterations: Infinity, easing: "ease-in-out",
+      });
+    }
+    glowTimer = setInterval(positionGlow, 500);
+  }
+  const rgb = GLOW_RGB[best];
+  glowEl.style.boxShadow = `inset 0 0 32px 8px rgba(${rgb}, 0.6), inset 0 0 6px 2px rgba(${rgb}, 0.75)`;
+  glowEl.dataset.level = best;
+  positionGlow();
+}
+
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -231,11 +327,35 @@ ${(err && err.stack) || ""}`,
     }
     this._ro.observe(this);
     if (this._hass && !this._unsub) this._subscribe();
+    // Once attached, the dashboard can be found: place the glow now and once
+    // more after Home Assistant has finished laying out the view.
+    if (this._hass && this._config) {
+      requestAnimationFrame(() => this._render());
+      setTimeout(() => this._render(), 1000);
+    }
   }
 
   disconnectedCallback() {
     if (this._ro) this._ro.disconnect();
     this._unsubscribe();
+    if (glowOwners.delete(this)) updateGlow();
+  }
+
+  _updateGlow(stateObj) {
+    const cfg = this._config || {};
+    if (!cfg.alert_glow) {
+      if (glowOwners.delete(this)) updateGlow();
+      return;
+    }
+    let level = cfg.alert_glow_test;
+    if (!level && cfg.alert_entity) level = this._hass.states[cfg.alert_entity]?.state;
+    if (!level) level = stateObj?.attributes?.alert_level;
+    level = String(level || "").toLowerCase();
+    const next = GLOW_LEVELS.includes(level) ? level : null;
+    glowOwners.set(this, next);
+    // Always re-evaluate: when the card is first drawn it may not be attached
+    // to the dashboard yet, so the glow has to be (re)placed on a later pass.
+    updateGlow();
   }
 
   _subscribe() {
@@ -318,6 +438,7 @@ ${(err && err.stack) || ""}`,
   _render() {
     if (!this._config || !this._hass) return;
     const stateObj = this._hass.states[this._config.entity];
+    this._updateGlow(stateObj);
     if (!stateObj || stateObj.state === "unavailable") {
       this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="unavailable">${
         esc(this._hass.localize("ui.card.weather.attributes.unavailable") || "Unavailable")}</div></ha-card>`;

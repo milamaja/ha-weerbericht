@@ -58,6 +58,21 @@ forecast_slots: 5         # optional, otherwise as many as fit
 
 It also supports `show_current: false`, `show_forecast: false`, `round_temperature: true` and a `tap_action` (`more-info`, `navigate`, `url` or `none`). With a Dutch Home Assistant the condition is shown in the KNMI wording ("Opklaringen", "Lichte bui, afgewisseld door zon").
 
+#### Weather alert glow
+
+Add `alert_glow: true` to the card and the dashboard gets a soft, slowly pulsing glow along its edges while a KNMI weather warning is out: yellow, orange or red, following the KNMI code. No glow when there is no warning.
+
+```yaml
+type: custom:weerbericht-card
+entity: weather.weerbericht
+alert_glow: true
+```
+
+- The glow sits behind the cards, below the top bar and right of the side menu, so buttons stay fully visible and every tap goes through.
+- It follows the warnings for the next 24 hours, like the KNMI app, and appears, changes colour or disappears by itself on an open dashboard (handy for a wall tablet).
+- It only shows while a dashboard with such a card is open.
+- `alert_entity: sensor.your_alert_sensor` takes the level from another entity, and `alert_glow_test: yellow` (or `orange`, `red`) shows the glow for trying it out. Remove the test option afterwards.
+
 Home Assistant's built-in weather card and the entity popup work too, but they have no pictures for showers with sun, and they draw partly cloudy with a sun even at night. The entity always reports the real KNMI condition; only the Weerbericht card and the entity icon show the moon behind a cloud.
 
 ### Weather alert tiles
