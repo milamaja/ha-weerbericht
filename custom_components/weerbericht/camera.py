@@ -8,6 +8,7 @@ import logging
 import aiohttp
 
 from homeassistant.components.camera import Camera
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -16,6 +17,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     ATTRIBUTION,
+    CONF_RADAR_MARKER,
     DOMAIN,
     RADAR_INTERVAL,
     RADAR_URL,
@@ -23,6 +25,7 @@ from .const import (
     USER_AGENT,
 )
 from .coordinator import WeerberichtConfigEntry
+from .radar_marker import mark_location
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +43,8 @@ class WeerberichtRadar(Camera):
 
     The image is fetched on demand and cached for RADAR_INTERVAL, so an idle
     dashboard costs nothing and a busy one still makes at most one request per
-    interval.
+    interval. Unless switched off in the options, a small house marks the
+    configured location.
     """
 
     _attr_attribution = ATTRIBUTION
@@ -62,6 +66,9 @@ class WeerberichtRadar(Camera):
         self._fetched = None
         self._last_modified: str | None = None
         self._lock = asyncio.Lock()
+        self._marker: tuple[float, float] | None = None
+        if entry.options.get(CONF_RADAR_MARKER, True):
+            self._marker = (entry.data[CONF_LATITUDE], entry.data[CONF_LONGITUDE])
 
     @property
     def extra_state_attributes(self) -> dict[str, str | None]:
@@ -90,9 +97,21 @@ class WeerberichtRadar(Camera):
                     if resp.status != 200:
                         _LOGGER.warning("Radar image: HTTP %s", resp.status)
                         return self._image
-                    self._image = await resp.read()
+                    self._image = await self._mark(await resp.read())
                     self._last_modified = resp.headers.get("Last-Modified")
                     self._fetched = now
             except (aiohttp.ClientError, asyncio.TimeoutError) as err:
                 _LOGGER.warning("Radar image: %s", err)
             return self._image
+
+    async def _mark(self, image: bytes) -> bytes:
+        """Draw the house on the loop; on any problem serve the plain image."""
+        if self._marker is None:
+            return image
+        try:
+            return await self.hass.async_add_executor_job(
+                mark_location, image, *self._marker
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Radar image: no location marker: %s", err)
+            return image

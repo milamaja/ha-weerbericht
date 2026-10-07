@@ -12,6 +12,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -19,7 +20,14 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import WeerberichtClient, WeerberichtError, grid_cell
-from .const import ALERT_REGIONS, CONF_REGION, CONF_WARNING_LANGUAGE, DOMAIN, WARNING_LANGUAGES
+from .const import (
+    ALERT_REGIONS,
+    CONF_RADAR_MARKER,
+    CONF_REGION,
+    CONF_WARNING_LANGUAGE,
+    DOMAIN,
+    WARNING_LANGUAGES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,23 +96,29 @@ class WeerberichtConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class WeerberichtOptionsFlow(OptionsFlow):
-    """Choose the language of the warning texts."""
+    """Choose the language of the warning texts and the radar marker."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
-        current = self.config_entry.options.get(CONF_WARNING_LANGUAGE, "nl")
+        options = self.config_entry.options
         schema = vol.Schema(
             {
-                vol.Required(CONF_WARNING_LANGUAGE, default=current): SelectSelector(
+                vol.Required(
+                    CONF_WARNING_LANGUAGE,
+                    default=options.get(CONF_WARNING_LANGUAGE, "nl"),
+                ): SelectSelector(
                     SelectSelectorConfig(
                         options=WARNING_LANGUAGES,
                         translation_key=CONF_WARNING_LANGUAGE,
                         mode=SelectSelectorMode.LIST,
                     )
-                )
+                ),
+                vol.Required(
+                    CONF_RADAR_MARKER, default=options.get(CONF_RADAR_MARKER, True)
+                ): BooleanSelector(),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

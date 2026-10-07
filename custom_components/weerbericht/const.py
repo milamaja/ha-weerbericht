@@ -26,6 +26,7 @@ ATTRIBUTION = "Bron: KNMI"
 CONF_REGION = "region"
 CONF_WARNING_LANGUAGE = "warning_language"
 WARNING_LANGUAGES = ["nl", "en"]
+CONF_RADAR_MARKER = "radar_marker"
 
 BASE_URL = "https://api.app.knmi.cloud"
 REQUEST_TIMEOUT = 20

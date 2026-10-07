@@ -12,7 +12,7 @@ For each configured location:
 
 - A `weather` entity with the current weather, an hourly forecast (about 60 hours) and a daily forecast (7 days with weather type, plus 8 more days from the 14-day outlook with temperature and precipitation only). Values match the KNMI app: temperature, precipitation amount and chance, wind speed and gusts in km/h, wind direction, UV index.
 - Sensors: temperature now, maximum and minimum of today, precipitation today, hours of sunshine today, UV index, heat index (hittekracht), weather alert level, weather alert text, and a Dutch weather description ("Opklaringen", "Lichte bui, afgewisseld door zon", ...).
-- A `camera` entity with the animated rain radar of the Netherlands (the loop published on knmi.nl, a new image every 5 minutes).
+- A `camera` entity with the animated rain radar of the Netherlands (the loop published on knmi.nl, a new image every 5 minutes), with a small house on your location so you can see where the rain is heading.
 - A **Weerbericht card** for your dashboard. It looks like Home Assistant's own weather card, but shows every KNMI app weather type: showers, thunder, snow and hail with the sun or the moon behind the cloud, and a moon instead of a sun after sunset. It is installed together with the integration, no separate download. Tapping it opens a detail popup with more information than Home Assistant's own weather dialog.
 - Its own integration icon (Home Assistant 2026.3 and newer).
 
@@ -47,9 +47,13 @@ Or go to **Settings, Devices & services, Add integration** and search for **Weer
 
 You can add the integration more than once for several locations.
 
+### Settings
+
+Under **Settings, Devices & services, Weerbericht, Configure** you choose the language of the warning texts, and whether the rain radar shows the location as a small house (on by default).
+
 ### Warning language
 
-Under **Settings, Devices & services, Weerbericht, Configure** you choose the language of the warning texts:
+The warning texts come in two languages:
 
 - **Dutch** (default): the KNMI's own texts, straight from the KNMI app, for example "Code geel voor dichte mist vanaf 01:00 tot 10:00".
 - **English**: the same warnings from [MeteoAlarm](https://meteoalarm.org), the European warning service the KNMI also publishes to, for example "Code yellow: moderate fog warning from 01:00 until 10:00". They are only fetched while a warning is out.
@@ -175,7 +179,7 @@ show_name: false
 - The integration polls the app backend every 20 minutes: one summary request and one detail request per forecast day.
 - Your coordinates are converted to the app's forecast grid cell (grid "A", 35 by 30 cells over the Netherlands). The cell is shown as the `grid_cell` attribute of the weather entity.
 - KNMI weather type codes are mapped to Home Assistant conditions. Night variants map to `clear-night` and `partlycloudy`.
-- The radar image is fetched only when a dashboard asks for it, and cached for 5 minutes.
+- The radar image is fetched only when a dashboard asks for it, and cached for 5 minutes. The house is drawn on each frame of the loop inside Home Assistant; your location never leaves your system.
 
 ## Limitations
 

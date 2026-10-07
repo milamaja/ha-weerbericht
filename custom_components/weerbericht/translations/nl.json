@@ -69,9 +69,10 @@
     "step": {
       "init": {
         "title": "Instellingen",
-        "description": "Kies de taal van de weerwaarschuwingen. Nederlandse teksten komen rechtstreeks uit de KNMI-app; Engelse teksten komen van MeteoAlarm, de Europese waarschuwingsdienst waar het KNMI ook aan levert. Het waarschuwingsniveau is altijd dat van het KNMI.",
+        "description": "Kies de taal van de weerwaarschuwingen. Nederlandse teksten komen rechtstreeks uit de KNMI-app; Engelse teksten komen van MeteoAlarm, de Europese waarschuwingsdienst waar het KNMI ook aan levert. Het waarschuwingsniveau is altijd dat van het KNMI. De neerslagradar kan de locatie van deze integratie als klein huisje tonen.",
         "data": {
-          "warning_language": "Taal van de waarschuwingen"
+          "warning_language": "Taal van de waarschuwingen",
+          "radar_marker": "Toon de locatie als huisje op de neerslagradar"
         }
       }
     }

@@ -69,9 +69,10 @@
     "step": {
       "init": {
         "title": "Settings",
-        "description": "Choose the language of the weather warning texts. Dutch texts come straight from the KNMI app; English texts come from MeteoAlarm, the European warning service KNMI also publishes to. The warning level is always the KNMI level.",
+        "description": "Choose the language of the weather warning texts. Dutch texts come straight from the KNMI app; English texts come from MeteoAlarm, the European warning service KNMI also publishes to. The warning level is always the KNMI level. The rain radar can show this integration's location as a small house.",
         "data": {
-          "warning_language": "Language of the warnings"
+          "warning_language": "Language of the warnings",
+          "radar_marker": "Show the location as a house on the rain radar"
         }
       }
     }
