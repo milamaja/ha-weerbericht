@@ -13,9 +13,10 @@ For each configured location:
 - A `weather` entity with the current weather, an hourly forecast (about 60 hours) and a daily forecast (7 days with weather type, plus 8 more days from the 14-day outlook with temperature and precipitation only). Values match the KNMI app: temperature, precipitation amount and chance, wind speed and gusts in km/h, wind direction, UV index.
 - Sensors: temperature now, maximum and minimum of today, precipitation today, hours of sunshine today, UV index, heat index (hittekracht), weather alert level, weather alert text, and a Dutch weather description ("Opklaringen", "Lichte bui, afgewisseld door zon", ...).
 - A `camera` entity with the animated rain radar of the Netherlands (the loop published on knmi.nl, a new image every 5 minutes).
-- A **Weerbericht card** for your dashboard. It looks like Home Assistant's own weather card, but shows every KNMI app weather type: showers, thunder, snow and hail with the sun or the moon behind the cloud, and a moon instead of a sun after sunset. It is installed together with the integration, no separate download.
+- A **Weerbericht card** for your dashboard. It looks like Home Assistant's own weather card, but shows every KNMI app weather type: showers, thunder, snow and hail with the sun or the moon behind the cloud, and a moon instead of a sun after sunset. It is installed together with the integration, no separate download. Tapping it opens a detail popup with more information than Home Assistant's own weather dialog.
+- Its own integration icon (Home Assistant 2026.3 and newer).
 
-The weather alert sensors follow the KNMI code colours: `none`, `yellow`, `orange`, `red`. The alert text sensor holds the KNMI warning text, or "Geen waarschuwingen" when there is none, so it can be shown on a dashboard tile directly.
+The weather alert sensors follow the KNMI code colours: `none`, `yellow`, `orange`, `red`. The alert text sensor holds the warning text, or "Geen waarschuwingen" ("No warnings" in English) when there is none, so it can be shown on a dashboard tile directly.
 
 ## Installation
 
@@ -40,13 +41,22 @@ Go to **Settings, Devices & services, Add integration** and search for **Weerber
 
 You can add the integration more than once for several locations.
 
+### Warning language
+
+Under **Settings, Devices & services, Weerbericht, Configure** you choose the language of the warning texts:
+
+- **Dutch** (default): the KNMI's own texts, straight from the KNMI app, for example "Code geel voor dichte mist vanaf 01:00 tot 10:00".
+- **English**: the same warnings from [MeteoAlarm](https://meteoalarm.org), the European warning service the KNMI also publishes to, for example "Code yellow: moderate fog warning from 01:00 until 10:00". They are only fetched while a warning is out.
+
+The warning level (and the glow on the card) always comes from the KNMI.
+
 ## Dashboard examples
 
 Entity IDs depend on the name you gave the integration and on your Home Assistant language. The examples use the name `Weerbericht` with an English UI; check your own IDs on the device page.
 
 ### Weerbericht card
 
-After installing, refresh your browser once. Then add the card from the card picker (search for "Weerbericht"), or in YAML:
+After installing, refresh your browser once. Then add the card from the card picker (search for "Weerbericht"). All options can be set in the visual editor, labelled in Dutch or English following your Home Assistant language. Or in YAML:
 
 ```yaml
 type: custom:weerbericht-card
@@ -56,7 +66,9 @@ name: Thuis               # optional
 forecast_slots: 5         # optional, otherwise as many as fit
 ```
 
-It also supports `show_current: false`, `show_forecast: false`, `round_temperature: true` and a `tap_action` (`more-info`, `navigate`, `url` or `none`). With a Dutch Home Assistant the condition is shown in the KNMI wording ("Opklaringen", "Lichte bui, afgewisseld door zon").
+It also supports `show_current: false`, `show_forecast: false`, `round_temperature: true` and a `tap_action` (`more-info`, `navigate`, `url` or `none`).
+
+Without a `tap_action`, tapping the card opens the **Weerbericht popup**: the current weather with the KNMI icon and description, a warning bar in the KNMI colour, wind with direction and Beaufort, gusts, rain today (amount and chance), hours of sunshine, UV index, sunrise and sunset, and tabs with the hourly forecast and up to 15 days with temperature bars and rain. The chart button in the popup opens Home Assistant's own dialog for history graphs. With a Dutch Home Assistant the condition is shown in the KNMI wording ("Opklaringen", "Lichte bui, afgewisseld door zon").
 
 #### Weather alert glow
 
