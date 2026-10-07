@@ -22,6 +22,10 @@ The weather alert sensors follow the KNMI code colours: `none`, `yellow`, `orang
 
 ### HACS (custom repository)
 
+[![Open your Home Assistant instance and open this repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=milamaja&repository=ha-weerbericht&category=integration)
+
+The button opens this repository in HACS (it uses [My Home Assistant](https://www.home-assistant.io/integrations/my/), which is on by default). Or add it by hand:
+
 1. In HACS, open the menu (three dots, top right) and choose **Custom repositories**.
 2. Add `https://github.com/milamaja/ha-weerbericht` with category **Integration**.
 3. Install **Weerbericht** and restart Home Assistant.
@@ -33,7 +37,9 @@ The weather alert sensors follow the KNMI code colours: `none`, `yellow`, `orang
 
 ## Configuration
 
-Go to **Settings, Devices & services, Add integration** and search for **Weerbericht**. Fill in:
+[![Open your Home Assistant instance and start setting up Weerbericht.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=weerbericht)
+
+Or go to **Settings, Devices & services, Add integration** and search for **Weerbericht**. Fill in:
 
 - **Name**: used for the device and the entity IDs, for example `Weerbericht`.
 - **Latitude / Longitude**: default to your home location. The forecast is per grid cell of roughly 9 km, the same cells the app uses.
