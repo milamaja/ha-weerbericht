@@ -167,7 +167,7 @@ show_name: false
 
 ## Attribution
 
-Weather data and radar image: KNMI (Koninklijk Nederlands Meteorologisch Instituut), available under their open data terms. The card's icons are combined from the weather icons of the [Home Assistant frontend](https://github.com/home-assistant/frontend) (Apache License 2.0). KNMI is a name of the Dutch national weather service and is used here only to identify the data source.
+Weather data and radar image: KNMI (Koninklijk Nederlands Meteorologisch Instituut), available under their open data terms. The card's icons and the integration icon are made from the weather icons of the [Home Assistant frontend](https://github.com/home-assistant/frontend) (Apache License 2.0). KNMI is a name of the Dutch national weather service and is used here only to identify the data source.
 
 ## License
 
