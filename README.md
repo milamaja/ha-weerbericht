@@ -112,7 +112,7 @@ alert_glow_strength: 40
 alert_glow_pulse: 5
 ```
 
-When several cards with a glow are on screen, the settings of the card with the highest warning level are used. Devices set to reduce motion always get a steady glow.
+When several cards with a glow are on screen, the settings of the card with the highest warning level are used. The pulse is a slow fade, so it also runs on devices set to reduce motion; set `alert_glow_pulse: 0` for a steady glow.
 
 Home Assistant's built-in weather card and the entity popup work too, but they have no pictures for showers with sun, and they draw partly cloudy with a sun even at night. The entity always reports the real KNMI condition; only the Weerbericht card and the entity icon show the moon behind a cloud.
 

@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.3.0";
+const CARD_VERSION = "1.4.1";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -266,8 +266,10 @@ function updateGlow() {
   glowEl.style.boxShadow =
     `inset 0 0 ${look.size}px ${spread}px rgba(${rgb}, ${a}), ` +
     `inset 0 0 ${edge}px ${Math.max(1, Math.round(edge / 3))}px rgba(${rgb}, ${inner})`;
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const pulse = reduced ? 0 : look.pulse;
+  // A slow fade, not movement, so it also runs with "reduce motion" on (fades
+  // are the usual reduced-motion alternative; many wall tablets have system
+  // animations switched off). alert_glow_pulse: 0 gives a steady glow.
+  const pulse = look.pulse;
   if (glowEl._pulse !== pulse) {
     glowEl.getAnimations().forEach((anim) => anim.cancel());
     glowEl._pulse = pulse;

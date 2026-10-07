@@ -242,8 +242,10 @@ function updateGlow() {
   glowEl.style.boxShadow =
     `inset 0 0 ${look.size}px ${spread}px rgba(${rgb}, ${a}), ` +
     `inset 0 0 ${edge}px ${Math.max(1, Math.round(edge / 3))}px rgba(${rgb}, ${inner})`;
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const pulse = reduced ? 0 : look.pulse;
+  // A slow fade, not movement, so it also runs with "reduce motion" on (fades
+  // are the usual reduced-motion alternative; many wall tablets have system
+  // animations switched off). alert_glow_pulse: 0 gives a steady glow.
+  const pulse = look.pulse;
   if (glowEl._pulse !== pulse) {
     glowEl.getAnimations().forEach((anim) => anim.cancel());
     glowEl._pulse = pulse;
