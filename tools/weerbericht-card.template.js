@@ -159,6 +159,7 @@ function glowStyle(cfg) {
 const glowOwners = new Map();
 let glowEl = null;
 let glowTimer = null;
+let pulseTimer = null;
 
 function dashboardParts(card) {
   let node = card;
@@ -181,6 +182,29 @@ function removeGlow() {
     clearInterval(glowTimer);
     glowTimer = null;
   }
+  stopPulse();
+}
+
+function stopPulse() {
+  if (pulseTimer) {
+    clearInterval(pulseTimer);
+    pulseTimer = null;
+  }
+}
+
+// The pulse is driven by a timer instead of CSS or Web Animations: Android
+// WebView freezes those when the system animations are switched off, which is
+// common on wall tablets. 20 steps per second is smooth enough for a slow fade.
+function startPulse(seconds) {
+  stopPulse();
+  const started = performance.now();
+  const step = () => {
+    if (!glowEl) return stopPulse();
+    const phase = ((performance.now() - started) / (seconds * 1000)) % 1;
+    glowEl.style.opacity = (0.4 + 0.45 * (0.5 - 0.5 * Math.cos(2 * Math.PI * phase))).toFixed(3);
+  };
+  step();
+  pulseTimer = setInterval(step, 50);
 }
 
 function positionGlow() {
@@ -247,14 +271,10 @@ function updateGlow() {
   // animations switched off). alert_glow_pulse: 0 gives a steady glow.
   const pulse = look.pulse;
   if (glowEl._pulse !== pulse) {
-    glowEl.getAnimations().forEach((anim) => anim.cancel());
     glowEl._pulse = pulse;
-    if (pulse > 0) {
-      glowEl.style.opacity = "";
-      glowEl.animate([{ opacity: 0.4 }, { opacity: 0.85 }, { opacity: 0.4 }], {
-        duration: pulse * 1000, iterations: Infinity, easing: "ease-in-out",
-      });
-    } else {
+    if (pulse > 0) startPulse(pulse);
+    else {
+      stopPulse();
       glowEl.style.opacity = "0.85";
     }
   }
