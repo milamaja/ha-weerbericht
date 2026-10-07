@@ -138,6 +138,9 @@ class WeerberichtWeather(WeerberichtEntity, WeatherEntity):
             "precipitation_today": today.get("precipitation"),
             "precipitation_probability_today": today.get("precipitation_probability"),
             "alert_level": self.coordinator.alert_level_24h(),
+            "alert_text": self.coordinator.alert_text() if self.coordinator.alerts() else None,
+            "uv_summary": self._current.get("uv_summary"),
+            "sunshine_text_today": self._current.get("sunshine_text_today"),
             "grid_cell": self.coordinator.cell,
             "region": self.coordinator.region,
         }

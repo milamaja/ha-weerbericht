@@ -255,8 +255,9 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             daily.append(
                 {
                     "datetime": _local_midnight(date),
-                    "temperature": round(tmax, 1) if tmax is not None else None,
-                    "templow": round(tmin, 1) if tmin is not None else None,
+                    # Whole degrees, like the KNMI app and the first 7 days.
+                    "temperature": round(tmax) if tmax is not None else None,
+                    "templow": round(tmin) if tmin is not None else None,
                     "precipitation": round(p_by_date[date], 1) if date in p_by_date else None,
                     "extended": True,
                 }

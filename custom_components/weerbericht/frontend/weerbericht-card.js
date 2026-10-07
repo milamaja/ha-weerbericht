@@ -284,6 +284,77 @@ function updateGlow() {
   positionGlow();
 }
 
+// ---------------------------------------------------------------- detail popup
+const POPUP_STYLE = `
+  .backdrop { position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, 0.55);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--ha-font-family-body, Roboto, sans-serif); }
+  .dialog { background: var(--card-background-color, var(--ha-card-background, #1c1c1c));
+    color: var(--primary-text-color, #e1e1e1); border-radius: 24px; width: min(560px, 100vw);
+    max-height: min(92vh, 900px); display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5); }
+  @media (max-width: 600px) { .dialog { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; } }
+  .head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 4px 20px; }
+  .title { flex: 1; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; border-radius: 999px; }
+  .icon-btn { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .icon-btn:hover { background: rgba(127, 127, 127, 0.15); }
+  .icon-btn svg { width: 24px; height: 24px; fill: currentColor; }
+  .scroll { overflow-y: auto; padding: 0 20px 16px; }
+  .alert { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 10px 12px; margin: 4px 0 12px;
+    background: rgba(var(--wb-alert), 0.18); border: 1px solid rgba(var(--wb-alert), 0.6); line-height: 1.35; }
+  .alert b { display: block; }
+  .alert .dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; flex: 0 0 auto; background: rgb(var(--wb-alert)); }
+  .now { display: flex; align-items: center; gap: 16px; padding: 8px 0 12px; }
+  .now > svg { width: 88px; height: 88px; flex: 0 0 auto; }
+  .now .text { flex: 1; min-width: 0; }
+  .now .cond { font-size: 24px; line-height: 1.2; }
+  .now .sub { color: var(--secondary-text-color, #9b9b9b); font-size: 14px; margin-top: 4px; }
+  .now .temp { font-size: 40px; line-height: 1; text-align: right; white-space: nowrap; }
+  .now .hl { color: var(--secondary-text-color, #9b9b9b); font-size: 14px; text-align: right; margin-top: 6px; white-space: nowrap; }
+  .details { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .detail { background: rgba(127, 127, 127, 0.1); border-radius: 12px; padding: 8px 12px; }
+  .detail .k { color: var(--secondary-text-color, #9b9b9b); font-size: 12px; }
+  .detail .v { font-size: 16px; margin-top: 2px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color, rgba(127,127,127,0.3)); margin-bottom: 8px; }
+  .tab { flex: 1; padding: 10px; color: var(--secondary-text-color, #9b9b9b); border-radius: 0; border-bottom: 2px solid transparent; }
+  .tab.on { color: var(--primary-color, #03a9f4); border-bottom-color: var(--primary-color, #03a9f4); }
+  .hours { display: flex; overflow-x: auto; gap: 4px; padding-bottom: 6px; }
+  .hour { flex: 0 0 56px; text-align: center; padding: 6px 0; border-radius: 12px; }
+  .hour.night { background: rgba(127, 127, 127, 0.07); }
+  .hour .t { color: var(--secondary-text-color, #9b9b9b); font-size: 12px; }
+  .hour svg { width: 36px; height: 36px; margin: 4px 0; }
+  .hour .deg { font-size: 16px; }
+  .rainv { color: #30b3ff; font-size: 12px; min-height: 15px; }
+  .day { display: grid; grid-template-columns: 84px 36px 1fr; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--divider-color, rgba(127,127,127,0.15)); }
+  .day:last-child { border-bottom: 0; }
+  .day .name { font-size: 15px; }
+  .day .name .date { display: block; color: var(--secondary-text-color, #9b9b9b); font-size: 12px; }
+  .day svg { width: 36px; height: 36px; }
+  .day .right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .day .lo, .day .hi { width: 34px; font-size: 15px; white-space: nowrap; }
+  .day .lo { text-align: right; color: var(--secondary-text-color, #9b9b9b); }
+  .bar { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(127, 127, 127, 0.2); min-width: 40px; }
+  .bar span { position: absolute; top: 0; bottom: 0; border-radius: 3px;
+    background: linear-gradient(90deg, #4fc3f7, #aed581, #ffd54f, #ff8a65); }
+  .day .rainc { width: 78px; text-align: right; }
+  .foot { color: var(--secondary-text-color, #9b9b9b); font-size: 12px; text-align: center; padding: 8px 0 4px; }
+  path.rain { fill: var(--weather-icon-rain-color, #30b3ff); }
+  path.sun { fill: var(--weather-icon-sun-color, #fdd93c); }
+  path.moon { fill: var(--weather-icon-moon-color, #fcf497); }
+  path.cloud-back, rect.cloud-back { fill: var(--weather-icon-cloud-back-color, #d4d4d4); }
+  path.cloud-front { fill: var(--weather-icon-cloud-front-color, #f9f9f9); }
+  path.snow { fill: var(--weather-icon-snow-color, #f9f9f9); }
+  path.hail { fill: var(--weather-icon-hail-color, #d4e8f5); }
+`;
+const MDI_CLOSE = "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z";
+const MDI_CHART = "M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z";
+const COMPASS = {
+  en: ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"],
+  nl: ["N", "NNO", "NO", "ONO", "O", "OZO", "ZO", "ZZO", "Z", "ZZW", "ZW", "WZW", "W", "WNW", "NW", "NNW"],
+};
+
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -413,6 +484,7 @@ ${(err && err.stack) || ""}`,
     try {
       if (!this._unsub) this._subscribe();
       this._render();
+      if (this._popup) this._renderPopup();
     } catch (err) {
       this._fail("render", err);
     }
@@ -439,6 +511,7 @@ ${(err && err.stack) || ""}`,
     if (this._ro) this._ro.disconnect();
     this._unsubscribe();
     if (glowOwners.delete(this)) updateGlow();
+    this._closePopup();
   }
 
   _updateGlow(stateObj) {
@@ -514,7 +587,12 @@ ${(err && err.stack) || ""}`,
   }
 
   _tap() {
-    const action = this._config.tap_action || { action: "more-info" };
+    // Default: Weerbericht's own detail popup. A configured tap_action wins.
+    const action = this._config.tap_action;
+    if (!action || action.action === "weerbericht") {
+      this._openPopup();
+      return;
+    }
     switch (action.action) {
       case "none":
         return;
@@ -533,6 +611,165 @@ ${(err && err.stack) || ""}`,
         this.dispatchEvent(ev);
       }
     }
+  }
+
+  _lang() {
+    return /^nl/i.test(this._hass?.locale?.language || this._hass?.language || "") ? "nl" : "en";
+  }
+
+  _openPopup() {
+    if (this._popup || !this._hass) return;
+    const host = document.createElement("div");
+    host.attachShadow({ mode: "open" });
+    document.body.appendChild(host);
+    this._popup = { host, tab: "hourly", fc: { daily: null, hourly: null }, unsubs: [] };
+    for (const type of ["daily", "hourly"]) {
+      const p = this._hass.connection
+        .subscribeMessage((ev) => {
+          if (!this._popup) return;
+          this._popup.fc[type] = ev.forecast || [];
+          this._renderPopup();
+        }, { type: "weather/subscribe_forecast", entity_id: this._config.entity, forecast_type: type })
+        .catch(() => null);
+      this._popup.unsubs.push(p);
+    }
+    this._popupKey = (ev) => { if (ev.key === "Escape") this._closePopup(); };
+    document.addEventListener("keydown", this._popupKey);
+    this._renderPopup();
+  }
+
+  _closePopup() {
+    if (!this._popup) return;
+    for (const p of this._popup.unsubs) Promise.resolve(p).then((fn) => typeof fn === "function" && fn()).catch(() => {});
+    this._popup.host.remove();
+    document.removeEventListener("keydown", this._popupKey);
+    this._popup = null;
+  }
+
+  _tz() {
+    return this._hass.locale?.time_zone === "server" ? this._hass.config.time_zone : undefined;
+  }
+
+  _time(iso) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleTimeString(this._hass.locale?.language || undefined,
+      { hour: "2-digit", minute: "2-digit", timeZone: this._tz() });
+  }
+
+  _dayName(iso, index) {
+    const lang = this._lang();
+    if (index === 0) return lang === "nl" ? "Vandaag" : "Today";
+    if (index === 1) return lang === "nl" ? "Morgen" : "Tomorrow";
+    const s = new Date(iso).toLocaleDateString(this._hass.locale?.language || undefined, { weekday: "long", timeZone: this._tz() });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  _renderPopup() {
+    const pop = this._popup;
+    if (!pop || !this._hass) return;
+    const stateObj = this._hass.states[this._config.entity];
+    if (!stateObj) return;
+    const a = stateObj.attributes;
+    const lang = this._lang();
+    const T = (en, nl) => (lang === "nl" ? nl : en);
+    const unit = a.temperature_unit || "°C";
+    const deg = (v) => (v == null ? "-" : `${this._fmt(v, 0)}°`);
+    const name = this._config.name && this._config.name.trim() ? this._config.name : a.friendly_name || "Weerbericht";
+
+    let alertHtml = "";
+    if (a.alert_level && GLOW_RGB[a.alert_level]) {
+      const title = { yellow: T("Code yellow", "Code geel"), orange: T("Code orange", "Code oranje"), red: T("Code red", "Code rood") }[a.alert_level];
+      alertHtml = `<div class="alert" style="--wb-alert:${GLOW_RGB[a.alert_level]}"><span class="dot"></span>
+        <div><b>${esc(title)}</b>${esc(a.alert_text || "")}</div></div>`;
+    }
+
+    const dir = a.wind_bearing != null ? COMPASS[lang][Math.round(Number(a.wind_bearing) / 22.5) % 16] : "";
+    const detail = (k, v) => (v ? `<div class="detail"><div class="k">${esc(k)}</div><div class="v">${v}</div></div>` : "");
+    const rainToday = a.precipitation_today != null
+      ? `${this._fmt(a.precipitation_today, 1)} mm${a.precipitation_probability_today != null ? ` · ${a.precipitation_probability_today}%` : ""}` : "";
+    const details = [
+      detail("Wind", a.wind_speed != null ? `${esc(dir)} ${this._fmt(a.wind_speed, 0)} km/h${a.beaufort != null ? ` · ${a.beaufort} Bft` : ""}` : ""),
+      detail(T("Gusts", "Windstoten"), a.wind_gust_speed != null ? `${this._fmt(a.wind_gust_speed, 0)} km/h` : ""),
+      detail(T("Rain today", "Neerslag vandaag"), rainToday),
+      detail(T("Sunshine today", "Zon vandaag"), a.sunshine_hours_today != null ? `${this._fmt(a.sunshine_hours_today, 0)} ${T("hours", "uur")}` : ""),
+      detail(T("UV index", "UV-index"), a.uv_index != null ? esc(String(a.uv_index)) : ""),
+      detail(T("Sunrise · sunset", "Zon op · onder"), a.sunrise ? `${this._time(a.sunrise)} · ${this._time(a.sunset)}` : ""),
+    ].join("");
+
+    const nowIcon = iconFor(a.weather_type, a.raw_condition || stateObj.state, a.night === true);
+    const cond = this._stateText(stateObj);
+    const updated = stateObj.last_updated ? `${T("Updated", "Bijgewerkt")} ${this._time(stateObj.last_updated)}` : "";
+    const loading = `<div class="foot">${T("Loading…", "Laden…")}</div>`;
+
+    let list = "";
+    if (pop.tab === "hourly") {
+      const hours = pop.fc.hourly;
+      list = hours === null ? loading : `<div class="hours">${hours.map((h) => {
+        const night = h.is_daytime === false;
+        const rain = h.precipitation > 0 ? `${this._fmt(h.precipitation, 1)} mm` : h.precipitation_probability ? `${h.precipitation_probability}%` : "";
+        return `<div class="hour${night ? " night" : ""}"><div class="t">${esc(this._time(h.datetime))}</div>
+          ${iconFor(h.weather_type, h.condition, night)}<div class="deg">${deg(h.temperature)}</div>
+          <div class="rainv">${esc(rain)}</div></div>`;
+      }).join("")}</div>`;
+    } else {
+      const days = pop.fc.daily;
+      if (days === null) {
+        list = loading;
+      } else {
+        const temps = days.flatMap((d) => [d.templow, d.temperature]).filter((v) => v != null);
+        const min = Math.min(...temps), max = Math.max(...temps);
+        const pos = (v) => (max > min ? ((v - min) / (max - min)) * 100 : 50);
+        list = days.map((d, i) => {
+          const date = new Date(d.datetime).toLocaleDateString(this._hass.locale?.language || undefined,
+            { day: "numeric", month: "short", timeZone: this._tz() });
+          const icon = d.weather_type || d.condition ? iconFor(d.weather_type, d.condition, false) : "<span></span>";
+          const rain = d.precipitation != null
+            ? `${this._fmt(d.precipitation, 1)} mm${d.precipitation_probability != null ? ` · ${d.precipitation_probability}%` : ""}` : "";
+          const lo = d.templow, hi = d.temperature;
+          const bar = lo != null && hi != null
+            ? `<div class="bar"><span style="left:${pos(lo)}%;right:${100 - pos(hi)}%"></span></div>` : `<div class="bar"></div>`;
+          return `<div class="day"><div class="name">${esc(this._dayName(d.datetime, i))}<span class="date">${esc(date)}</span></div>
+            ${icon}<div class="right"><div class="lo">${deg(lo)}</div>${bar}<div class="hi">${deg(hi)}</div>
+            <div class="rainv rainc">${esc(rain)}</div></div></div>`;
+        }).join("");
+      }
+    }
+
+    const scrollTop = pop.host.shadowRoot.querySelector(".scroll")?.scrollTop || 0;
+    const hoursLeft = pop.host.shadowRoot.querySelector(".hours")?.scrollLeft || 0;
+    pop.host.shadowRoot.innerHTML = `<style>${POPUP_STYLE}</style>
+      <div class="backdrop"><div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(name)}">
+        <div class="head"><div class="title">${esc(name)}</div>
+          <button class="icon-btn" data-act="history" title="${T("History", "Geschiedenis")}"><svg viewBox="0 0 24 24"><path d="${MDI_CHART}"/></svg></button>
+          <button class="icon-btn" data-act="close" title="${T("Close", "Sluiten")}"><svg viewBox="0 0 24 24"><path d="${MDI_CLOSE}"/></svg></button></div>
+        <div class="scroll">
+          ${alertHtml}
+          <div class="now">${nowIcon}<div class="text"><div class="cond">${esc(cond)}</div><div class="sub">${esc(updated)}</div></div>
+            <div><div class="temp">${a.temperature != null ? `${this._fmt(a.temperature, 0)}&nbsp;${esc(unit)}` : ""}</div>
+            <div class="hl">${a.today_high != null ? `${this._fmt(a.today_high, 0)}° / ${this._fmt(a.today_low, 0)}°` : ""}</div></div></div>
+          <div class="details">${details}</div>
+          <div class="tabs"><button class="tab${pop.tab === "hourly" ? " on" : ""}" data-tab="hourly">${T("Hourly", "Per uur")}</button>
+            <button class="tab${pop.tab === "daily" ? " on" : ""}" data-tab="daily">${T("Daily", "Per dag")}</button></div>
+          ${list}
+          <div class="foot">${esc(a.attribution || "Bron: KNMI")}</div>
+        </div></div></div>`;
+    const root = pop.host.shadowRoot;
+    const sc = root.querySelector(".scroll");
+    if (sc) sc.scrollTop = scrollTop;
+    const hs = root.querySelector(".hours");
+    if (hs) hs.scrollLeft = hoursLeft;
+    root.querySelector(".backdrop").addEventListener("click", (ev) => { if (ev.target === ev.currentTarget) this._closePopup(); });
+    root.querySelector('[data-act="close"]').addEventListener("click", () => this._closePopup());
+    root.querySelector('[data-act="history"]').addEventListener("click", () => {
+      this._closePopup();
+      const ev = new Event("hass-more-info", { bubbles: true, composed: true });
+      ev.detail = { entityId: this._config.entity };
+      this.dispatchEvent(ev);
+    });
+    root.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
+      pop.tab = b.dataset.tab;
+      this._renderPopup();
+    }));
   }
 
   _render() {
