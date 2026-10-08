@@ -79,7 +79,22 @@ forecast_slots: 5         # optional, otherwise as many as fit
 
 It also supports `show_current: false`, `show_forecast: false`, `round_temperature: true` and a `tap_action` (`more-info`, `navigate`, `url` or `none`).
 
-While rain is on its way in the next 2 hours, the card shows a small rain graph under the current weather ("Rain from 14:25", the expected amount, and a bar per 5 minutes). When it stays dry, nothing is added. Set `show_rain: false` to leave it out, for example on a wall display where every pixel is planned. The card finds the Expected rain sensor of the same location by itself; `rain_entity` points it at another one.
+Below the forecast the card can show the **rain graph** for the next 2 hours on your location, like the KNMI app: a bar per 5 minutes, with lines for light, moderate and heavy rain (the KNMI app's levels: up to 1, 8 and 15 mm/h, each level equally high), a line with the value at this moment, and a summary such as "Rain from 14:25 · 0.6 mm".
+
+- `show_rain: auto` (default) shows it only while rain is on its way, `always` keeps it there (also "Dry for the next 2 hours"), `never` leaves it out.
+- `rain_height: 136` sets its height in pixels (default 96).
+- The card finds the Expected rain sensor of the same location by itself; `rain_entity` points it at another one.
+
+The graph is also available as a card of its own, for example next to the radar:
+
+```yaml
+type: custom:weerbericht-rain-card
+title: Neerslag            # optional
+show_levels: true          # light / moderate / heavy lines
+show_summary: true
+```
+
+Point at the graph (or tap it on a touch screen) to see the value at that moment.
 
 Without a `tap_action`, tapping the card opens the **Weerbericht popup**: the current weather with the KNMI icon and description, a warning bar in the KNMI colour, wind with direction and Beaufort, gusts, rain today (amount and chance), hours of sunshine, UV index, sunrise and sunset, the rain graph for the next 2 hours, and tabs with the hourly forecast and up to 15 days with temperature bars and rain. The chart button in the popup opens Home Assistant's own dialog for history graphs. With a Dutch Home Assistant the condition is shown in the KNMI wording ("Opklaringen", "Lichte bui, afgewisseld door zon").
 

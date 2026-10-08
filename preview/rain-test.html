@@ -44,7 +44,12 @@ for (const [title, points] of Object.entries(CASES)) {
   const card = document.createElement("weerbericht-card");
   slot.appendChild(card);
   row.appendChild(slot);
-  card.setConfig({ entity: "weather.weerbericht", name: "Home" });
+  card.setConfig({ entity: "weather.weerbericht", name: "Home", show_rain: "always" });
   card.hass = hass;
+  const rc = document.createElement("weerbericht-rain-card");
+  rc.style.cssText = "height:170px;margin-top:12px";
+  slot.appendChild(rc);
+  rc.setConfig({});
+  rc.hass = hass;
 }
 </script></body></html>

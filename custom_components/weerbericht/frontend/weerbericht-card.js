@@ -118,14 +118,15 @@ function iconFor(code, condition, night) {
 }
 
 const RAIN_STYLE = `
-  .rain-head { display: flex; justify-content: space-between; gap: 8px;
-    font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color); line-height: 1.2; }
-  .rain-head b { color: var(--primary-text-color); font-weight: 500; }
-  .rain-chart { display: block; width: 100%; height: 36px; margin-top: 4px; }
-  .rain-chart .bar { fill: var(--weather-icon-rain-color, #30b3ff); }
-  .rain-chart .base { stroke: var(--divider-color, rgba(127,127,127,.4)); stroke-width: 1; }
-  .rain-axis { display: flex; justify-content: space-between; font-size: 11px;
-    color: var(--secondary-text-color); line-height: 1; margin-top: 2px; }
+  .rain-svg { display: block; overflow: visible; }
+  .rain-svg .bar { fill: var(--weather-icon-rain-color, #30b3ff); }
+  .rain-svg .lvl { stroke: var(--divider-color, rgba(127, 127, 127, 0.35)); stroke-width: 1; }
+  .rain-svg .base { stroke: var(--secondary-text-color, #9b9b9b); stroke-opacity: 0.5; stroke-width: 1; }
+  .rain-svg text { font-size: 11px; fill: var(--secondary-text-color, #9b9b9b); }
+  .rain-svg .mark { stroke: var(--primary-text-color, #e1e1e1); stroke-width: 1.5; }
+  .rain-svg .tip { fill: var(--secondary-background-color, #2b2b2b); stroke: var(--divider-color, rgba(127, 127, 127, 0.35)); }
+  .rain-svg .tiptext { fill: var(--primary-text-color, #e1e1e1); font-weight: 500; }
+  .rain-svg .sum { fill: var(--primary-text-color, #e1e1e1); font-size: 12px; }
 `;
 
 const STYLE = `
@@ -164,8 +165,7 @@ const STYLE = `
   .cloud-front { fill: var(--weather-icon-cloud-front-color, #f9f9f9); }
   .snow { fill: var(--weather-icon-snow-color, #f9f9f9); }
   .hail { fill: var(--weather-icon-hail-color, #d4e8f5); }
-  .rain-now { padding: 12px 16px 0; }
-  .rain-now + .forecast { padding-top: 12px; }
+  .rain-now { padding: 14px 16px 0; }
   ${RAIN_STYLE}
   .unavailable { height: 100px; display: flex; justify-content: center; align-items: center;
     font-size: var(--ha-font-size-l, 16px); }
@@ -397,18 +397,128 @@ const COMPASS = {
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// Rain graph of the KNMI app: intensity in mm/h per 5 minutes for the next two
-// hours. Bars use a log scale so light rain stays visible next to a downpour.
-function rainBars(points) {
-  const n = Math.max(points.length, 1);
-  const W = 240, H = 36, step = W / n;
-  const scale = (v) => Math.min(1, Math.log10(1 + v) / Math.log10(11));
-  const bars = points.map((p, i) => {
-    if (!(p.intensity > 0)) return "";
-    const h = Math.max(2, scale(p.intensity) * (H - 1));
-    return `<rect class="bar" x="${(i * step + step * 0.12).toFixed(2)}" y="${(H - 1 - h).toFixed(2)}" width="${(step * 0.76).toFixed(2)}" height="${h.toFixed(2)}" rx="1"/>`;
-  }).join("");
-  return `<svg class="rain-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line class="base" x1="0" y1="${H - 0.5}" x2="${W}" y2="${H - 0.5}"/>${bars}</svg>`;
+const isNl = (hass) => /^nl/i.test(hass?.locale?.language || hass?.language || "");
+
+// The 12/24-hour choice in the user's Home Assistant profile (undefined: follow the language).
+function hour12(hass) {
+  const f = hass?.locale?.time_format;
+  return f === "12" ? true : f === "24" ? false : undefined;
+}
+
+function fmtTime(hass, t) {
+  return new Date(t).toLocaleTimeString(hass.locale?.language || undefined, {
+    hour: "2-digit", minute: "2-digit", hour12: hour12(hass),
+    timeZone: hass.locale?.time_zone === "server" ? hass.config.time_zone : undefined,
+  });
+}
+
+function fmtNum(hass, n, digits) {
+  return Number(n).toLocaleString(hass.locale?.language || undefined, { maximumFractionDigits: digits });
+}
+
+// The "Expected rain" sensor of a Weerbericht location (the same device as the
+// weather entity, when one is given).
+function findRainEntity(hass, weatherEntity) {
+  if (!hass?.entities) return undefined;
+  const device = weatherEntity ? hass.entities[weatherEntity]?.device_id : undefined;
+  return Object.keys(hass.entities).find((e) => {
+    const r = hass.entities[e];
+    return r.platform === "weerbericht" && r.translation_key === "rain_expected" &&
+      (!device || r.device_id === device);
+  });
+}
+
+// 5-minute steps from the current one onwards, as {t: ms, v: mm/h}.
+function rainPoints(hass, entityId) {
+  const st = entityId ? hass.states[entityId] : null;
+  if (!st || !Array.isArray(st.attributes.forecast)) return null;
+  const from = Date.now() - 5 * 60 * 1000;
+  const pts = st.attributes.forecast
+    .map((p) => ({ t: new Date(p.datetime).getTime(), v: Number(p.intensity) || 0 }))
+    .filter((p) => p.t > from);
+  return pts.length ? pts : null;
+}
+
+function rainSummary(hass, pts) {
+  const T = (en, nl) => (isNl(hass) ? nl : en);
+  const wet = (p) => p && p.v > 0;
+  if (!pts.some(wet)) return T("Dry for the next 2 hours", "Droog de komende 2 uur");
+  let text;
+  if (wet(pts[0])) {
+    const dry = pts.find((p) => !wet(p));
+    text = dry ? T(`Rain until ${fmtTime(hass, dry.t)}`, `Regen tot ${fmtTime(hass, dry.t)}`)
+      : T("Rain for the next 2 hours", "Regen de komende 2 uur");
+  } else {
+    const start = pts.find(wet);
+    text = T(`Rain from ${fmtTime(hass, start.t)}`, `Regen vanaf ${fmtTime(hass, start.t)}`);
+  }
+  const mm = pts.reduce((sum, p) => sum + p.v, 0) / 12;
+  return `${text} · ${mm < 0.05 ? `< ${fmtNum(hass, 0.1, 1)}` : fmtNum(hass, mm, 1)} mm`;
+}
+
+// Rain levels of the KNMI app (mm/h): light up to 1, moderate up to 8, heavy up
+// to 15. Each level gets the same height, like the app's graph, so light rain
+// stays visible next to a downpour.
+function rainBand(v) {
+  if (!(v > 0)) return 0;
+  if (v <= 1) return v;
+  if (v <= 8) return 1 + (v - 1) / 7;
+  if (v <= 15) return 2 + (v - 8) / 7;
+  return Math.min(3.3, 3 + (v - 15) / 15);
+}
+
+function rainGeometry(w, h, levels) {
+  const l = levels ? 48 : 2, r = 4, t = 24, b = 16;
+  return { l, r, t, b, cw: Math.max(10, w - l - r), ch: Math.max(10, h - t - b) };
+}
+
+// Bar graph with a bar per 5 minutes, the level lines, a time axis and a line
+// with the value at "now" (or at the moment pointed at, cursor in ms).
+function rainChart(hass, pts, w, h, opts = {}) {
+  const nl = isNl(hass);
+  const levels = opts.levels !== false;
+  const g = rainGeometry(w, h, levels);
+  const n = pts.length;
+  const step = g.cw / n;
+  const top = 3.3;
+  const base = g.t + g.ch;
+  const yb = (band) => base - (band / top) * g.ch;
+  const t0 = pts[0].t, span = 5 * 60 * 1000 * n;
+  const xt = (t) => g.l + Math.min(1, Math.max(0, (t - t0) / span)) * g.cw;
+  let out = "";
+  if (levels) {
+    const names = nl ? ["Licht", "Matig", "Zwaar"] : ["Light", "Moderate", "Heavy"];
+    names.forEach((name, i) => {
+      const y = yb(i + 1).toFixed(1);
+      out += `<line class="lvl" x1="${g.l}" x2="${g.l + g.cw}" y1="${y}" y2="${y}"/>` +
+        `<text x="${g.l - 6}" y="${y}" text-anchor="end" dominant-baseline="middle">${names[i]}</text>`;
+    });
+  }
+  out += `<line class="base" x1="${g.l}" x2="${g.l + g.cw}" y1="${base - 0.5}" y2="${base - 0.5}"/>`;
+  pts.forEach((p, i) => {
+    if (!(p.v > 0)) return;
+    const hgt = Math.max(2, (rainBand(p.v) / top) * g.ch);
+    out += `<rect class="bar" x="${(g.l + i * step + step * 0.12).toFixed(1)}" y="${(base - hgt).toFixed(1)}" width="${(step * 0.76).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5"/>`;
+  });
+  for (const i of [0, Math.round(n / 3), Math.round((2 * n) / 3), n - 1]) {
+    const x = g.l + i * step + step / 2;
+    const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+    out += `<text x="${(i === 0 ? g.l : i === n - 1 ? g.l + g.cw : x).toFixed(1)}" y="${h - 2}" text-anchor="${anchor}">${esc(fmtTime(hass, pts[i].t))}</text>`;
+  }
+  if (opts.summary) {
+    out += `<text class="sum" x="${g.l + g.cw}" y="14" text-anchor="end">${esc(opts.summary)}</text>`;
+  }
+  // Marker: now, or the moment pointed at.
+  const at = opts.cursor ?? Date.now();
+  const idx = Math.min(n - 1, Math.max(0, Math.floor((at - t0) / (5 * 60 * 1000))));
+  const mx = xt(at);
+  const label = `${opts.cursor != null ? fmtTime(hass, pts[idx].t) : nl ? "Nu" : "Now"} · ${fmtNum(hass, pts[idx].v, 1)} ${nl ? "mm/u" : "mm/h"}`;
+  const bw = label.length * 6.2 + 14;
+  const bx = Math.min(w - bw, Math.max(0, mx - bw / 2));
+  out += `<line class="mark" x1="${mx.toFixed(1)}" x2="${mx.toFixed(1)}" y1="20" y2="${base}"/>` +
+    `<rect class="tip" x="${bx.toFixed(1)}" y="1" width="${bw.toFixed(1)}" height="19" rx="5"/>` +
+    `<text class="tiptext" x="${(bx + bw / 2).toFixed(1)}" y="14.5" text-anchor="middle">${esc(label)}</text>`;
+  return `<svg class="rain-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${out}</svg>`;
 }
 
 class WeerberichtCard extends HTMLElement {
@@ -432,7 +542,8 @@ class WeerberichtCard extends HTMLElement {
       show_current: t("Show current weather", "Huidig weer tonen"),
       show_forecast: t("Show forecast", "Verwachting tonen"),
       round_temperature: t("Round temperatures", "Temperaturen afronden"),
-      show_rain: t("Show expected rain", "Verwachte neerslag tonen"),
+      show_rain: t("Rain graph (next 2 hours)", "Neerslaggrafiek (komende 2 uur)"),
+      rain_height: t("Rain graph height", "Hoogte neerslaggrafiek"),
       rain_entity: t("Expected rain sensor (optional)", "Sensor verwachte neerslag (optioneel)"),
       alert_glow: t("Glow during weather warnings", "Gloed bij weerwaarschuwingen"),
       alert_entity: t("Warning level from another entity (optional)", "Waarschuwingsniveau uit andere entiteit (optioneel)"),
@@ -447,8 +558,7 @@ class WeerberichtCard extends HTMLElement {
         "Yellow, orange or red glow along the dashboard edges while a KNMI warning is out.",
         "Gele, oranje of rode gloed langs de randen van het dashboard zolang er een KNMI-waarschuwing is."),
       forecast_slots: t("Empty: as many as fit.", "Leeg: zoveel als er passen."),
-      show_rain: t("A small rain graph for the next 2 hours, only while rain is on its way.",
-        "Een kleine neerslaggrafiek voor de komende 2 uur, alleen als er regen op komst is."),
+      show_rain: t("Shown below the forecast.", "Onder de verwachting."),
     };
     return {
       schema: [
@@ -468,7 +578,6 @@ class WeerberichtCard extends HTMLElement {
             { name: "show_current", default: true, selector: { boolean: {} } },
             { name: "show_forecast", default: true, selector: { boolean: {} } },
             { name: "round_temperature", selector: { boolean: {} } },
-            { name: "show_rain", default: true, selector: { boolean: {} } },
           ],
         },
         {
@@ -485,6 +594,16 @@ class WeerberichtCard extends HTMLElement {
               { value: "orange", label: t("Orange", "Oranje") },
               { value: "red", label: t("Red", "Rood") },
             ] } } },
+          ],
+        },
+        {
+          type: "grid", name: "", schema: [
+            { name: "show_rain", selector: { select: { mode: "dropdown", options: [
+              { value: "auto", label: t("When rain is on its way", "Als er regen op komst is") },
+              { value: "always", label: t("Always", "Altijd") },
+              { value: "never", label: t("Never", "Nooit") },
+            ] } } },
+            { name: "rain_height", selector: { number: { min: 60, max: 240, step: 4, mode: "box", unit_of_measurement: "px" } } },
           ],
         },
         { name: "rain_entity", selector: { entity: { domain: "sensor" } } },
@@ -672,54 +791,6 @@ ${(err && err.stack) || ""}`,
     }
   }
 
-  // The "Expected rain" sensor of the same Weerbericht location, unless one is configured.
-  _rainState() {
-    const hass = this._hass;
-    let id = this._config.rain_entity;
-    if (!id && hass.entities) {
-      const device = hass.entities[this._config.entity]?.device_id;
-      id = Object.keys(hass.entities).find((e) => {
-        const r = hass.entities[e];
-        return r.platform === "weerbericht" && r.translation_key === "rain_expected" &&
-          (!device || r.device_id === device);
-      });
-    }
-    const st = id ? hass.states[id] : null;
-    if (!st || !Array.isArray(st.attributes.forecast)) return null;
-    // Drop the steps that have passed since the last update.
-    const now = Date.now() - 5 * 60 * 1000;
-    const points = st.attributes.forecast.filter((p) => new Date(p.datetime).getTime() > now);
-    return points.length ? { state: st, points } : null;
-  }
-
-  _rainSummary(rain) {
-    const T = (en, nl) => (this._lang() === "nl" ? nl : en);
-    const pts = rain.points;
-    const wet = (p) => p && p.intensity > 0;
-    if (!pts.some(wet)) return { text: T("Dry for the next 2 hours", "Droog de komende 2 uur"), amount: "" };
-    let text;
-    if (wet(pts[0])) {
-      const dry = pts.find((p) => !wet(p));
-      text = dry ? T(`Rain until ${this._time(dry.datetime)}`, `Regen tot ${this._time(dry.datetime)}`)
-        : T("Rain for the next 2 hours", "Regen de komende 2 uur");
-    } else {
-      const start = pts.find(wet);
-      text = T(`Rain from ${this._time(start.datetime)}`, `Regen vanaf ${this._time(start.datetime)}`);
-    }
-    const mm = pts.reduce((s, p) => s + (p.intensity || 0), 0) / 12;
-    const amount = mm < 0.05 ? `< ${this._fmt(0.1, 1)} mm` : `${this._fmt(mm, 1)} mm`;
-    return { text, amount };
-  }
-
-  _rainHtml(rain) {
-    const s = this._rainSummary(rain);
-    const pts = rain.points;
-    const mid = pts[Math.floor(pts.length / 2)], last = pts[pts.length - 1];
-    const now = this._lang() === "nl" ? "Nu" : "Now";
-    return `<div class="rain-head"><b>${esc(s.text)}</b><span>${esc(s.amount)}</span></div>${rainBars(pts)}
-      <div class="rain-axis"><span>${now}</span><span>${esc(this._time(mid.datetime))}</span><span>${esc(this._time(last.datetime))}</span></div>`;
-  }
-
   _lang() {
     return /^nl/i.test(this._hass?.locale?.language || this._hass?.language || "") ? "nl" : "en";
   }
@@ -755,8 +826,11 @@ ${(err && err.stack) || ""}`,
 
   // The 12/24-hour choice in the user's Home Assistant profile (undefined: follow the language).
   _hour12() {
-    const f = this._hass.locale?.time_format;
-    return f === "12" ? true : f === "24" ? false : undefined;
+    return hour12(this._hass);
+  }
+
+  _rainPoints() {
+    return rainPoints(this._hass, this._config.rain_entity || findRainEntity(this._hass, this._config.entity));
   }
 
   _tz() {
@@ -809,8 +883,8 @@ ${(err && err.stack) || ""}`,
       detail(T("Sunrise · sunset", "Zon op · onder"), a.sunrise ? `${this._time(a.sunrise)} · ${this._time(a.sunset)}` : ""),
     ].join("");
 
-    const rain = this._rainState();
-    const rainPopup = rain ? `<div class="rain-pop"><div class="k">${T("Rain, next 2 hours", "Neerslag komende 2 uur")}</div>${this._rainHtml(rain)}</div>` : "";
+    const rainPts = this._rainPoints();
+    const rainPopup = rainPts ? `<div class="rain-pop"><div class="k">${T("Rain, next 2 hours", "Neerslag komende 2 uur")}</div><div class="rain-slot"></div></div>` : "";
 
     const nowIcon = iconFor(a.weather_type, a.raw_condition || stateObj.state, a.night === true);
     const cond = this._stateText(stateObj);
@@ -875,6 +949,10 @@ ${(err && err.stack) || ""}`,
     if (sc) sc.scrollTop = scrollTop;
     const hs = root.querySelector(".hours");
     if (hs) hs.scrollLeft = hoursLeft;
+    const slot = root.querySelector(".rain-slot");
+    if (slot && rainPts) {
+      slot.innerHTML = rainChart(this._hass, rainPts, slot.clientWidth || 300, 110, { summary: rainSummary(this._hass, rainPts) });
+    }
     root.querySelector(".backdrop").addEventListener("click", (ev) => { if (ev.target === ev.currentTarget) this._closePopup(); });
     root.querySelector('[data-act="close"]').addEventListener("click", () => this._closePopup());
     root.querySelector('[data-act="history"]').addEventListener("click", () => {
@@ -927,10 +1005,16 @@ ${(err && err.stack) || ""}`,
         </div>`;
     }
 
+    // Rain graph below the forecast: always, only while rain is on its way (default), or never.
     let rainHtml = "";
-    if (this._config.show_rain !== false) {
-      const rain = this._rainState();
-      if (rain && rain.points.some((p) => p.intensity > 0)) rainHtml = `<div class="rain-now">${this._rainHtml(rain)}</div>`;
+    const showRain = this._config.show_rain;
+    if (showRain !== false && showRain !== "never") {
+      const pts = this._rainPoints();
+      if (pts && (showRain === "always" || pts.some((p) => p.v > 0))) {
+        const w = Math.max(160, (this._width || 360) - 32);
+        rainHtml = `<div class="rain-now">${rainChart(this._hass, pts, w, Number(this._config.rain_height) || 96,
+          { summary: rainSummary(this._hass, pts) })}</div>`;
+      }
     }
 
     let fc = "";
@@ -950,8 +1034,123 @@ ${(err && err.stack) || ""}`,
       fc = `<div class="forecast">${items}</div>`;
     }
 
-    this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card>${current}${rainHtml}${fc}</ha-card>`;
+    this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card>${current}${fc}${rainHtml}</ha-card>`;
     this.shadowRoot.querySelector("ha-card").addEventListener("click", () => this._tap());
+  }
+}
+
+// The rain graph on its own: "type: custom:weerbericht-rain-card".
+class WeerberichtRainCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._cursor = null;
+  }
+
+  static getConfigForm() {
+    const nl = /^nl/i.test(document.querySelector("home-assistant")?.hass?.locale?.language || navigator.language || "");
+    const t = (en, dutch) => (nl ? dutch : en);
+    const LABELS = {
+      entity: t("Expected rain sensor (optional)", "Sensor verwachte neerslag (optioneel)"),
+      title: t("Title", "Titel"),
+      show_levels: t("Show light / moderate / heavy", "Licht / matig / zwaar tonen"),
+      show_summary: t("Show summary", "Samenvatting tonen"),
+    };
+    return {
+      schema: [
+        { name: "entity", selector: { entity: { domain: "sensor", integration: "weerbericht" } } },
+        { name: "title", selector: { text: {} } },
+        { type: "grid", name: "", schema: [
+          { name: "show_levels", default: true, selector: { boolean: {} } },
+          { name: "show_summary", default: true, selector: { boolean: {} } },
+        ] },
+      ],
+      computeLabel: (schema) => LABELS[schema.name],
+    };
+  }
+
+  static getStubConfig(hass) {
+    const entity = findRainEntity(hass);
+    return entity ? { entity } : {};
+  }
+
+  setConfig(config) {
+    this._config = { show_levels: true, show_summary: true, ...(config || {}) };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  getCardSize() { return 3; }
+
+  getGridOptions() { return { columns: 12, rows: 3, min_columns: 4, min_rows: 2 }; }
+
+  connectedCallback() {
+    // Keep the "now" line moving between sensor updates.
+    this._timer = setInterval(() => this._render(), 30000);
+    this._render();
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._timer);
+    if (this._ro) this._ro.disconnect();
+  }
+
+  _setup() {
+    this.shadowRoot.innerHTML = `<style>
+      :host { display: block; height: 100%; }
+      ha-card { height: 100%; box-sizing: border-box; padding: 10px 14px 8px; display: flex; flex-direction: column; }
+      .title { font-size: var(--ha-font-size-m, 14px); color: var(--primary-text-color); margin-bottom: 4px; }
+      .plot { flex: 1; min-height: 70px; touch-action: pan-y; }
+      .msg { color: var(--secondary-text-color); font-size: 14px; padding: 8px 0; }
+      ${RAIN_STYLE}
+    </style><ha-card><div class="title" hidden></div><div class="plot"></div></ha-card>`;
+    const plot = this.shadowRoot.querySelector(".plot");
+    this._ro = new ResizeObserver(() => this._render());
+    this._ro.observe(plot);
+    const point = (ev) => {
+      if (!this._pts) return;
+      const rect = plot.getBoundingClientRect();
+      const g = rainGeometry(rect.width, rect.height, this._config.show_levels !== false);
+      const f = (ev.clientX - rect.left - g.l) / g.cw;
+      if (f < 0 || f > 1) return;
+      this._cursor = this._pts[0].t + f * this._pts.length * 5 * 60 * 1000;
+      this._render();
+    };
+    plot.addEventListener("pointermove", point);
+    plot.addEventListener("pointerdown", (ev) => {
+      point(ev);
+      // On a touch screen the value stays a few seconds, then "now" returns.
+      clearTimeout(this._release);
+      this._release = setTimeout(() => { this._cursor = null; this._render(); }, 4000);
+    });
+    plot.addEventListener("pointerleave", (ev) => {
+      if (ev.pointerType === "mouse") { this._cursor = null; this._render(); }
+    });
+  }
+
+  _render() {
+    if (!this._config || !this._hass) return;
+    if (!this.shadowRoot.querySelector(".plot")) this._setup();
+    const title = this.shadowRoot.querySelector(".title");
+    title.hidden = !this._config.title;
+    title.textContent = this._config.title || "";
+    const plot = this.shadowRoot.querySelector(".plot");
+    const pts = rainPoints(this._hass, this._config.entity || findRainEntity(this._hass));
+    this._pts = pts;
+    if (!pts) {
+      plot.innerHTML = `<div class="msg">${isNl(this._hass) ? "Geen neerslaggegevens" : "No rain data"}</div>`;
+      return;
+    }
+    const w = Math.round(plot.clientWidth) || 300, h = Math.round(plot.clientHeight) || 100;
+    plot.innerHTML = rainChart(this._hass, pts, w, h, {
+      levels: this._config.show_levels !== false,
+      summary: this._config.show_summary !== false ? rainSummary(this._hass, pts) : "",
+      cursor: this._cursor,
+    });
   }
 }
 
@@ -961,13 +1160,16 @@ ${(err && err.stack) || ""}`,
 // until Home Assistant can see the card. Each attempt uses a fresh subclass,
 // because a registry refuses a constructor it has seen before.
 const TAG = "weerbericht-card";
+const RAIN_TAG = "weerbericht-rain-card";
 function register() {
   const registry = window.customElements;
-  if (registry.get(TAG)) return;
-  try {
-    registry.define(TAG, class extends WeerberichtCard {});
-  } catch (err) {
-    console.warn("weerbericht-card: define failed", err);
+  for (const [tag, base] of [[TAG, WeerberichtCard], [RAIN_TAG, WeerberichtRainCard]]) {
+    if (registry.get(tag)) continue;
+    try {
+      registry.define(tag, class extends base {});
+    } catch (err) {
+      console.warn(`${tag}: define failed`, err);
+    }
   }
 }
 register();
@@ -981,6 +1183,13 @@ if (!window.__weerberichtCardAnnounced) {
     type: TAG,
     name: "Weerbericht",
     description: "Weather card with the KNMI app weather types, including night and shower icons.",
+    preview: true,
+    documentationURL: "https://github.com/milamaja/ha-weerbericht",
+  });
+  window.customCards.push({
+    type: RAIN_TAG,
+    name: "Weerbericht rain",
+    description: "Expected rain for the next 2 hours, like the KNMI app's rain graph.",
     preview: true,
     documentationURL: "https://github.com/milamaja/ha-weerbericht",
   });
