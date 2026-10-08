@@ -192,7 +192,7 @@ class WeerberichtRainSensor(CoordinatorEntity[WeerberichtRainCoordinator], Senso
     _attr_attribution = ATTRIBUTION
     _attr_has_entity_name = True
     # The 5-minute series changes every update; keep it out of the recorder.
-    _unrecorded_attributes = frozenset({"forecast", "radar_run"})
+    _unrecorded_attributes = frozenset({"forecast", "past", "radar_run"})
 
     def __init__(
         self,

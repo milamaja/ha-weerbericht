@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from typing import Any
 
 import aiohttp
@@ -23,6 +24,12 @@ from .const import (
     GRID_SW_LON,
     METEOALARM_TIMEOUT,
     METEOALARM_URL,
+    RADAR_ELLIPSOID,
+    RADAR_LAT_TS,
+    RADAR_NE,
+    RADAR_PREFIX,
+    RADAR_STEPS,
+    RADAR_SW,
     REQUEST_TIMEOUT,
     USER_AGENT,
 )
@@ -51,6 +58,32 @@ def grid_cell(latitude: float, longitude: float) -> str | None:
     lat_cell = int((GRID_NE_LAT - latitude) * lat_mult)
     lon_cell = int((longitude - GRID_SW_LON) * lon_mult)
     return f"{GRID_PREFIX}{lat_cell + lon_cell * GRID_STEPS_LAT}"
+
+
+def radar_cell(latitude: float, longitude: float) -> str | None:
+    """Return the radar grid cell (for example "B34908" for central Amsterdam) used by the rain graph, or None if outside.
+
+    The app projects the location to polar stereographic coordinates (km) on the
+    KNMI radar ellipsoid and looks the point up in a 1 km grid.
+    """
+    a, b = RADAR_ELLIPSOID
+    e = math.sqrt(1 - (b * b) / (a * a))
+
+    def t(phi: float) -> float:
+        s = math.sin(phi)
+        return math.tan(math.pi / 4 - phi / 2) / ((1 - e * s) / (1 + e * s)) ** (e / 2)
+
+    pc = math.radians(RADAR_LAT_TS)
+    mc = math.cos(pc) / math.sqrt(1 - e * e * math.sin(pc) ** 2)
+    rho = a * mc * t(math.radians(latitude)) / t(pc)
+    x = rho * math.sin(math.radians(longitude))
+    y = -rho * math.cos(math.radians(longitude))
+    (sw_y, sw_x), (ne_y, ne_x) = RADAR_SW, RADAR_NE
+    if not (sw_y < y <= ne_y and sw_x <= x < ne_x):
+        return None
+    row = int((ne_y - y) * RADAR_STEPS[0] / (ne_y - sw_y))
+    col = int((x - sw_x) * RADAR_STEPS[1] / (ne_x - sw_x))
+    return f"{RADAR_PREFIX}{row + col * RADAR_STEPS[0]}"
 
 
 class WeerberichtClient:

@@ -51,6 +51,17 @@ GRID_STEPS_LAT = 35
 GRID_STEPS_LON = 30
 GRID_PREFIX = "A"
 
+# Radar grid "B" of the KNMI app, used for the rain graph: 1 km cells in the
+# radar projection (polar stereographic, true at 60 degrees north, on the
+# KNMI radar ellipsoid in km), numbered like grid "A". These are the app's
+# built-in defaults.
+RADAR_ELLIPSOID = (6378.14, 6356.75)
+RADAR_LAT_TS = 60.0
+RADAR_SW = (-4240.0, 247.0)  # (y, x) in km
+RADAR_NE = (-3889.0, 510.0)
+RADAR_STEPS = (351, 263)  # (y, x)
+RADAR_PREFIX = "B"
+
 # Weather alert regions (the KNMI warning regions), id -> name.
 ALERT_REGIONS = {
     "1": "Drenthe",

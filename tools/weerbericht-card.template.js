@@ -99,6 +99,8 @@ const RAIN_STYLE = `
   .rain-svg .lvl { stroke: var(--divider-color, rgba(127, 127, 127, 0.35)); stroke-width: 1; }
   .rain-svg .base { stroke: var(--secondary-text-color, #9b9b9b); stroke-opacity: 0.5; stroke-width: 1; }
   .rain-svg text { font-size: 11px; fill: var(--secondary-text-color, #9b9b9b); }
+  .rain-svg .bar.past { fill-opacity: 0.55; }
+  .rain-svg .now { stroke: var(--primary-text-color, #e1e1e1); stroke-width: 1.5; stroke-dasharray: 4 3; }
   .rain-svg .mark { stroke: var(--primary-text-color, #e1e1e1); stroke-width: 1.5; }
   .rain-svg .tip { fill: var(--secondary-background-color, #2b2b2b); stroke: var(--divider-color, rgba(127, 127, 127, 0.35)); }
   .rain-svg .tiptext { fill: var(--primary-text-color, #e1e1e1); font-weight: 500; }
@@ -404,19 +406,32 @@ function findRainEntity(hass, weatherEntity) {
   });
 }
 
-// 5-minute steps from the current one onwards, as {t: ms, v: mm/h}.
+// The last hour and the next two, in 5-minute steps, as {t: ms, v: mm/h}.
 function rainPoints(hass, entityId) {
   const st = entityId ? hass.states[entityId] : null;
   if (!st || !Array.isArray(st.attributes.forecast)) return null;
-  const from = Date.now() - 5 * 60 * 1000;
-  const pts = st.attributes.forecast
-    .map((p) => ({ t: new Date(p.datetime).getTime(), v: Number(p.intensity) || 0 }))
-    .filter((p) => p.t > from);
+  const map = (p) => ({ t: new Date(p.datetime).getTime(), v: Number(p.intensity) || 0 });
+  const past = (st.attributes.past || []).map(map);
+  const future = st.attributes.forecast.map(map);
+  // The sensor updates every 5 minutes; keep exactly one hour before the current step.
+  const now = Date.now();
+  const all = [...past, ...future].sort((a, b) => a.t - b.t);
+  const current = all.filter((p) => p.t <= now).pop();
+  if (!current) return all.length ? all : null;
+  const pts = all.filter((p) => p.t >= current.t - 60 * 60 * 1000);
   return pts.length ? pts : null;
 }
 
-function rainSummary(hass, pts) {
+// The steps from the current one onwards.
+function upcoming(pts) {
+  const now = Date.now();
+  const i = pts.findIndex((p) => p.t > now);
+  return pts.slice(i <= 0 ? 0 : i - 1);
+}
+
+function rainSummary(hass, all) {
   const T = (en, nl) => (isNl(hass) ? nl : en);
+  const pts = upcoming(all);
   const wet = (p) => p && p.v > 0;
   if (!pts.some(wet)) return T("Dry for the next 2 hours", "Droog de komende 2 uur");
   let text;
@@ -448,18 +463,20 @@ function rainGeometry(w, h, levels) {
   return { l, r, t, b, cw: Math.max(10, w - l - r), ch: Math.max(10, h - t - b) };
 }
 
-// Bar graph with a bar per 5 minutes, the level lines, a time axis and a line
-// with the value at "now" (or at the moment pointed at, cursor in ms).
+// Bar graph with a bar per 5 minutes (the last hour and the next two), the
+// level lines, a time axis with whole and half hours, a dashed line at "now"
+// and the value at "now" (or at the moment pointed at, cursor in ms).
 function rainChart(hass, pts, w, h, opts = {}) {
   const nl = isNl(hass);
   const levels = opts.levels !== false;
   const g = rainGeometry(w, h, levels);
   const n = pts.length;
+  const STEP = 5 * 60 * 1000;
   const step = g.cw / n;
   const top = 3.3;
   const base = g.t + g.ch;
   const yb = (band) => base - (band / top) * g.ch;
-  const t0 = pts[0].t, span = 5 * 60 * 1000 * n;
+  const t0 = pts[0].t, span = STEP * n;
   const xt = (t) => g.l + Math.min(1, Math.max(0, (t - t0) / span)) * g.cw;
   let out = "";
   if (levels) {
@@ -467,32 +484,42 @@ function rainChart(hass, pts, w, h, opts = {}) {
     names.forEach((name, i) => {
       const y = yb(i + 1).toFixed(1);
       out += `<line class="lvl" x1="${g.l}" x2="${g.l + g.cw}" y1="${y}" y2="${y}"/>` +
-        `<text x="${g.l - 6}" y="${y}" text-anchor="end" dominant-baseline="middle">${names[i]}</text>`;
+        `<text x="${g.l - 6}" y="${y}" text-anchor="end" dominant-baseline="middle">${name}</text>`;
     });
   }
   out += `<line class="base" x1="${g.l}" x2="${g.l + g.cw}" y1="${base - 0.5}" y2="${base - 0.5}"/>`;
+  const now = Date.now();
   pts.forEach((p, i) => {
     if (!(p.v > 0)) return;
     const hgt = Math.max(2, (rainBand(p.v) / top) * g.ch);
-    out += `<rect class="bar" x="${(g.l + i * step + step * 0.12).toFixed(1)}" y="${(base - hgt).toFixed(1)}" width="${(step * 0.76).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5"/>`;
+    const past = p.t + STEP <= now ? " past" : "";
+    out += `<rect class="bar${past}" x="${(g.l + i * step + step * 0.12).toFixed(1)}" y="${(base - hgt).toFixed(1)}" width="${(step * 0.76).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5"/>`;
   });
-  for (const i of [0, Math.round(n / 3), Math.round((2 * n) / 3), n - 1]) {
-    const x = g.l + i * step + step / 2;
-    const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
-    out += `<text x="${(i === 0 ? g.l : i === n - 1 ? g.l + g.cw : x).toFixed(1)}" y="${h - 2}" text-anchor="${anchor}">${esc(fmtTime(hass, pts[i].t))}</text>`;
+  // Time axis: every half hour when there is room, otherwise every hour.
+  const every = g.cw / (span / (30 * 60 * 1000)) >= 46 ? 30 : 60;
+  const unit = every * 60 * 1000;
+  for (let t = Math.ceil(t0 / unit) * unit; t <= t0 + span; t += unit) {
+    const x = xt(t);
+    if (x < g.l + 16 || x > g.l + g.cw - 16) continue;
+    out += `<line class="base" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${base}" y2="${base + 3}"/>` +
+      `<text x="${x.toFixed(1)}" y="${h - 2}" text-anchor="middle">${esc(fmtTime(hass, t))}</text>`;
   }
   if (opts.summary) {
     out += `<text class="sum" x="${g.l + g.cw}" y="14" text-anchor="end">${esc(opts.summary)}</text>`;
   }
-  // Marker: now, or the moment pointed at.
-  const at = opts.cursor ?? Date.now();
-  const idx = Math.min(n - 1, Math.max(0, Math.floor((at - t0) / (5 * 60 * 1000))));
+  // Dashed line at "now"; the value box sits there unless a moment is pointed at.
+  const nx = xt(now);
+  out += `<line class="now" x1="${nx.toFixed(1)}" x2="${nx.toFixed(1)}" y1="20" y2="${base}"/>`;
+  const at = opts.cursor ?? now;
+  const idx = Math.min(n - 1, Math.max(0, Math.floor((at - t0) / STEP)));
   const mx = xt(at);
+  if (opts.cursor != null) {
+    out += `<line class="mark" x1="${mx.toFixed(1)}" x2="${mx.toFixed(1)}" y1="20" y2="${base}"/>`;
+  }
   const label = `${opts.cursor != null ? fmtTime(hass, pts[idx].t) : nl ? "Nu" : "Now"} · ${fmtNum(hass, pts[idx].v, 1)} ${nl ? "mm/u" : "mm/h"}`;
   const bw = label.length * 6.2 + 14;
   const bx = Math.min(w - bw, Math.max(0, mx - bw / 2));
-  out += `<line class="mark" x1="${mx.toFixed(1)}" x2="${mx.toFixed(1)}" y1="20" y2="${base}"/>` +
-    `<rect class="tip" x="${bx.toFixed(1)}" y="1" width="${bw.toFixed(1)}" height="19" rx="5"/>` +
+  out += `<rect class="tip" x="${bx.toFixed(1)}" y="1" width="${bw.toFixed(1)}" height="19" rx="5"/>` +
     `<text class="tiptext" x="${(bx + bw / 2).toFixed(1)}" y="14.5" text-anchor="middle">${esc(label)}</text>`;
   return `<svg class="rain-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${out}</svg>`;
 }
@@ -986,7 +1013,7 @@ ${(err && err.stack) || ""}`,
     const showRain = this._config.show_rain;
     if (showRain !== false && showRain !== "never") {
       const pts = this._rainPoints();
-      if (pts && (showRain === "always" || pts.some((p) => p.v > 0))) {
+      if (pts && (showRain === "always" || upcoming(pts).some((p) => p.v > 0))) {
         const w = Math.max(160, (this._width || 360) - 32);
         rainHtml = `<div class="rain-now">${rainChart(this._hass, pts, w, Number(this._config.rain_height) || 96,
           { summary: rainSummary(this._hass, pts) })}</div>`;
@@ -1094,6 +1121,7 @@ class WeerberichtRainCard extends HTMLElement {
       const f = (ev.clientX - rect.left - g.l) / g.cw;
       if (f < 0 || f > 1) return;
       this._cursor = this._pts[0].t + f * this._pts.length * 5 * 60 * 1000;
+      if (this._cursor > Date.now() - 2 * 60 * 1000 && this._cursor < Date.now() + 2 * 60 * 1000) this._cursor = null;
       this._render();
     };
     plot.addEventListener("pointermove", point);

@@ -12,7 +12,7 @@ For each configured location:
 
 - A `weather` entity with the current weather, an hourly forecast (about 60 hours) and a daily forecast (7 days with weather type, plus 8 more days from the 14-day outlook with temperature and precipitation only). Values match the KNMI app: temperature, precipitation amount and chance, wind speed and gusts in km/h, wind direction, UV index.
 - Sensors: temperature now, maximum and minimum of today, precipitation today, hours of sunshine today, UV index, heat index (hittekracht), weather alert level, weather alert text, and a Dutch weather description ("Opklaringen", "Lichte bui, afgewisseld door zon", ...).
-- Expected rain for the next 2 hours on your location, from the KNMI app's rain graph (radar nowcast in 5-minute steps): an **Expected rain** sensor with the total in mm and the 5-minute series in its `forecast` attribute (plus `rain_start`, `rain_end` and `max_intensity`), and a **Rain intensity** sensor with the current intensity in mm/h. Both update every 5 minutes.
+- Expected rain for the next 2 hours on your location, from the KNMI app's rain graph (radar nowcast in 5-minute steps): an **Expected rain** sensor with the total in mm and the 5-minute series in its `forecast` attribute (plus the last hour in `past`, and `rain_start`, `rain_end` and `max_intensity`), and a **Rain intensity** sensor with the current intensity in mm/h. Both update every 5 minutes.
 - A `camera` entity with the animated rain radar of the Netherlands (the loop published on knmi.nl, a new image every 5 minutes), with a small house on your location so you can see where the rain is heading.
 - A **Weerbericht card** for your dashboard. It looks like Home Assistant's own weather card, but shows every KNMI app weather type: showers, thunder, snow and hail with the sun or the moon behind the cloud, and a moon instead of a sun after sunset. It is installed together with the integration, no separate download. Tapping it opens a detail popup with more information than Home Assistant's own weather dialog.
 - Its own integration icon (Home Assistant 2026.3 and newer).
@@ -79,7 +79,7 @@ forecast_slots: 5         # optional, otherwise as many as fit
 
 It also supports `show_current: false`, `show_forecast: false`, `round_temperature: true` and a `tap_action` (`more-info`, `navigate`, `url` or `none`).
 
-Below the forecast the card can show the **rain graph** for the next 2 hours on your location, like the KNMI app: a bar per 5 minutes, with lines for light, moderate and heavy rain (the KNMI app's levels: up to 1, 8 and 15 mm/h, each level equally high), a line with the value at this moment, and a summary such as "Rain from 14:25 · 0.6 mm".
+Below the forecast the card can show the **rain graph** for your location, like the KNMI app: the last hour and the next 2 hours with a bar per 5 minutes, a dashed line at this moment, with lines for light, moderate and heavy rain (the KNMI app's levels: up to 1, 8 and 15 mm/h, each level equally high), a line with the value at this moment, and a summary such as "Rain from 14:25 · 0.6 mm".
 
 - `show_rain: auto` (default) shows it only while rain is on its way, `always` keeps it there (also "Dry for the next 2 hours"), `never` leaves it out.
 - `rain_height: 136` sets its height in pixels (default 96).
@@ -197,7 +197,7 @@ show_name: false
 - The integration polls the app backend every 20 minutes: one summary request and one detail request per forecast day.
 - Your coordinates are converted to the app's forecast grid cell (grid "A", 35 by 30 cells over the Netherlands). The cell is shown as the `grid_cell` attribute of the weather entity.
 - KNMI weather type codes are mapped to Home Assistant conditions. Night variants map to `clear-night` and `partlycloudy`.
-- The rain graph is polled every 5 minutes (two small requests), only while one of the rain sensors is enabled.
+- The rain graph is polled every 5 minutes (two small requests), only while one of the rain sensors is enabled. Like the app, it uses the 1 km radar grid (cell `B...`, in the radar projection) instead of the 9 km forecast cell, so a shower a few kilometres away does not count as rain at your place.
 - The radar image is fetched only when a dashboard asks for it, and cached for 5 minutes. The house is drawn on each frame of the loop inside Home Assistant; your location never leaves your system.
 
 ## Limitations

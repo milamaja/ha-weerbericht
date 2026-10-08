@@ -18,7 +18,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
-from .api import WeerberichtClient, grid_cell
+from .api import WeerberichtClient, grid_cell, radar_cell
 from .const import CONF_REGION, DOMAIN
 from .coordinator import (
     WeerberichtConfigEntry,
@@ -131,8 +131,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeerberichtConfigEntry) 
     await coordinator.async_config_entry_first_refresh()
     # The rain graph is extra: if it fails, the rain sensors start unavailable
     # and the rest of the location works as usual.
-    coordinator.rain = WeerberichtRainCoordinator(hass, entry, client, cell)
-    await coordinator.rain.async_refresh()
+    # The rain graph uses the app's 1 km radar grid, not the forecast cell.
+    rain_cell = radar_cell(entry.data[CONF_LATITUDE], entry.data[CONF_LONGITUDE])
+    if rain_cell is not None:
+        coordinator.rain = WeerberichtRainCoordinator(hass, entry, client, rain_cell)
+        await coordinator.rain.async_refresh()
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 

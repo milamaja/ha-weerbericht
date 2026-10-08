@@ -1,7 +1,7 @@
 """Data coordinator: fetches the forecast and reshapes it for the entities."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -422,6 +422,16 @@ class WeerberichtRainCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         current = [i for i, (t, _) in enumerate(points) if t <= now]
         return points[current[-1] if current else 0:]
 
+    def past(self, minutes: int = 60) -> list[tuple[datetime, float]]:
+        """The 5-minute steps of the last hour, before the current one."""
+        points = (self.data or {}).get("points", [])
+        now = dt_util.utcnow()
+        current = [t for t, _ in points if t <= now]
+        if not current:
+            return []
+        start = current[-1] - timedelta(minutes=minutes)
+        return [(t, a) for t, a in points if start <= t < current[-1]]
+
     def intensity_now(self) -> float | None:
         upcoming = self.upcoming()
         return round(upcoming[0][1], 2) if upcoming else None
@@ -445,6 +455,9 @@ class WeerberichtRainCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return {
             "forecast": [
                 {"datetime": t.isoformat(), "intensity": round(a, 2)} for t, a in upcoming
+            ],
+            "past": [
+                {"datetime": t.isoformat(), "intensity": round(a, 2)} for t, a in self.past()
             ],
             "rain_start": start.isoformat() if start else None,
             "rain_end": end.isoformat() if end else None,

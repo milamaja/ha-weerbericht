@@ -15,6 +15,7 @@ const lang = new URLSearchParams(location.search).get("lang") || "en";
 const step = 5 * 60 * 1000;
 const t0 = Math.floor(Date.now() / step) * step;
 const series = (amounts) => amounts.map((a, i) => ({ datetime: new Date(t0 + i * step).toISOString(), intensity: a }));
+const past = [0, 0, 0.12, 0.96, 0.4, 0, 0, 0, 0.12, 0.36, 0.12, 0].map((a, i) => ({ datetime: new Date(t0 - (12 - i) * step).toISOString(), intensity: a }));
 const zeros = (n) => Array(n).fill(0);
 const CASES = {
   "Rain on its way": series([...zeros(5), 0.12, 0.48, 1.32, 2.52, 1.2, 0.36, ...zeros(13)]),
@@ -33,7 +34,7 @@ for (const [title, points] of Object.entries(CASES)) {
     },
     states: {
       "weather.weerbericht": { entity_id: "weather.weerbericht", state: "rainy", attributes: { friendly_name: "Home", temperature: 16, temperature_unit: "°C", weather_type: 1380, raw_condition: "rainy", today_high: 16, today_low: 10, weather_text: "Lichte bui" } },
-      "sensor.weerbericht_expected_rain": { entity_id: "sensor.weerbericht_expected_rain", state: "0.5", attributes: { forecast: points } },
+      "sensor.weerbericht_expected_rain": { entity_id: "sensor.weerbericht_expected_rain", state: "0.5", attributes: { forecast: points, past } },
     },
     localize: (k) => ({ "component.weather.entity_component._.state.rainy": "Rainy" })[k] || "",
     connection: { subscribeMessage: (cb) => { setTimeout(() => cb({ forecast: fc }), 0); return Promise.resolve(() => {}); } },
