@@ -11,13 +11,23 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfPrecipitationDepth, UnitOfTemperature, UnitOfTime
+from homeassistant.const import (
+    UnitOfPrecipitationDepth,
+    UnitOfTemperature,
+    UnitOfTime,
+    UnitOfVolumetricFlux,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ALERT_LEVELS
-from .coordinator import WeerberichtConfigEntry, WeerberichtCoordinator
-from .entity import WeerberichtEntity
+from .const import ALERT_LEVELS, ATTRIBUTION
+from .coordinator import (
+    WeerberichtConfigEntry,
+    WeerberichtCoordinator,
+    WeerberichtRainCoordinator,
+)
+from .entity import WeerberichtEntity, device_info
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -115,12 +125,45 @@ SENSORS: tuple[WeerberichtSensorDescription, ...] = (
 )
 
 
+@dataclass(frozen=True, kw_only=True)
+class WeerberichtRainDescription(SensorEntityDescription):
+    value_fn: Callable[[WeerberichtRainCoordinator], Any]
+    attributes_fn: Callable[[WeerberichtRainCoordinator], dict[str, Any]] | None = None
+
+
+RAIN_SENSORS: tuple[WeerberichtRainDescription, ...] = (
+    WeerberichtRainDescription(
+        key="rain_expected",
+        translation_key="rain_expected",
+        device_class=SensorDeviceClass.PRECIPITATION,
+        native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS,
+        suggested_display_precision=1,
+        icon="mdi:weather-pouring",
+        value_fn=lambda r: r.expected_mm(),
+        attributes_fn=lambda r: r.attributes(),
+    ),
+    WeerberichtRainDescription(
+        key="rain_intensity",
+        translation_key="rain_intensity",
+        device_class=SensorDeviceClass.PRECIPITATION_INTENSITY,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfVolumetricFlux.MILLIMETERS_PER_HOUR,
+        suggested_display_precision=1,
+        value_fn=lambda r: r.intensity_now(),
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: WeerberichtConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    async_add_entities(WeerberichtSensor(entry, desc) for desc in SENSORS)
+    entities: list[SensorEntity] = [WeerberichtSensor(entry, desc) for desc in SENSORS]
+    rain = entry.runtime_data.rain
+    if rain is not None:
+        entities += [WeerberichtRainSensor(entry, rain, desc) for desc in RAIN_SENSORS]
+    async_add_entities(entities)
 
 
 class WeerberichtSensor(WeerberichtEntity, SensorEntity):
@@ -130,6 +173,37 @@ class WeerberichtSensor(WeerberichtEntity, SensorEntity):
         super().__init__(entry)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}-{description.key}"
+
+    @property
+    def native_value(self) -> Any:
+        return self.entity_description.value_fn(self.coordinator)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.attributes_fn is None:
+            return None
+        return self.entity_description.attributes_fn(self.coordinator)
+
+
+class WeerberichtRainSensor(CoordinatorEntity[WeerberichtRainCoordinator], SensorEntity):
+    """Expected rain from the rain graph, refreshed every 5 minutes."""
+
+    entity_description: WeerberichtRainDescription
+    _attr_attribution = ATTRIBUTION
+    _attr_has_entity_name = True
+    # The 5-minute series changes every update; keep it out of the recorder.
+    _unrecorded_attributes = frozenset({"forecast", "radar_run"})
+
+    def __init__(
+        self,
+        entry: WeerberichtConfigEntry,
+        rain: WeerberichtRainCoordinator,
+        description: WeerberichtRainDescription,
+    ) -> None:
+        super().__init__(rain)
+        self.entity_description = description
+        self._attr_unique_id = f"{entry.entry_id}-{description.key}"
+        self._attr_device_info = device_info(entry)
 
     @property
     def native_value(self) -> Any:

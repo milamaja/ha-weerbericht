@@ -62,6 +62,12 @@
       },
       "weather_text": {
         "name": "Weather description"
+      },
+      "rain_expected": {
+        "name": "Expected rain"
+      },
+      "rain_intensity": {
+        "name": "Rain intensity"
       }
     }
   },

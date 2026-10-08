@@ -20,7 +20,11 @@ from homeassistant.helpers.typing import ConfigType
 
 from .api import WeerberichtClient, grid_cell
 from .const import CONF_REGION, DOMAIN
-from .coordinator import WeerberichtConfigEntry, WeerberichtCoordinator
+from .coordinator import (
+    WeerberichtConfigEntry,
+    WeerberichtCoordinator,
+    WeerberichtRainCoordinator,
+)
 
 PLATFORMS: list[Platform] = [Platform.WEATHER, Platform.SENSOR, Platform.CAMERA]
 
@@ -122,14 +126,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeerberichtConfigEntry) 
     if cell is None:
         raise ConfigEntryNotReady("location is outside the KNMI forecast grid")
 
-    coordinator = WeerberichtCoordinator(
-        hass,
-        entry,
-        WeerberichtClient(async_get_clientsession(hass)),
-        cell,
-        entry.data[CONF_REGION],
-    )
+    client = WeerberichtClient(async_get_clientsession(hass))
+    coordinator = WeerberichtCoordinator(hass, entry, client, cell, entry.data[CONF_REGION])
     await coordinator.async_config_entry_first_refresh()
+    # The rain graph is extra: if it fails, the rain sensors start unavailable
+    # and the rest of the location works as usual.
+    coordinator.rain = WeerberichtRainCoordinator(hass, entry, client, cell)
+    await coordinator.rain.async_refresh()
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 

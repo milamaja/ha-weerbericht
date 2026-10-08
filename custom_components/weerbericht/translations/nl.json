@@ -62,6 +62,12 @@
       },
       "weather_text": {
         "name": "Weerbeschrijving"
+      },
+      "rain_expected": {
+        "name": "Verwachte neerslag"
+      },
+      "rain_intensity": {
+        "name": "Neerslagintensiteit"
       }
     }
   },

@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
     NIGHT_CODES,
     NO_ALERT_TEXT,
+    RAIN_INTERVAL,
     REGION_EMMA,
     UPDATE_INTERVAL,
     WEATHER_TYPE_TEXT,
@@ -82,6 +83,7 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.region = region
         # Dutch (the KNMI's own texts) unless English is chosen in the settings.
         self.language = entry.options.get(CONF_WARNING_LANGUAGE, "nl")
+        self.rain: WeerberichtRainCoordinator | None = None
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -378,3 +380,74 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def weather_type_text(code: Any) -> str | None:
         """Dutch description of a KNMI weather type code."""
         return WEATHER_TYPE_TEXT.get(code) if isinstance(code, int) else None
+
+
+class WeerberichtRainCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Poll the rain graph of the KNMI app: expected rain for the next two hours.
+
+    Polls only while a rain sensor is enabled (a coordinator without listeners
+    does not schedule updates).
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, client: WeerberichtClient, cell: str) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"{DOMAIN} {entry.title} rain",
+            update_interval=RAIN_INTERVAL,
+        )
+        self.client = client
+        self.cell = cell
+
+    async def _async_update_data(self) -> dict[str, Any]:
+        try:
+            run = await self.client.precipitation_run()
+            graph = await self.client.precipitation_graph(self.cell, run)
+            precip = graph["precipitation"]
+            points = [
+                (datetime.fromisoformat(t), float(a or 0))
+                for t, a in zip(precip["times"], precip["amounts"])
+            ]
+        except WeerberichtError as err:
+            raise UpdateFailed(str(err)) from err
+        except (KeyError, TypeError, ValueError) as err:
+            raise UpdateFailed(f"unexpected rain graph: {err!r}") from err
+        return {"run": run, "points": points}
+
+    def upcoming(self) -> list[tuple[datetime, float]]:
+        """The 5-minute steps from the current one onwards."""
+        points = (self.data or {}).get("points", [])
+        now = dt_util.utcnow()
+        current = [i for i, (t, _) in enumerate(points) if t <= now]
+        return points[current[-1] if current else 0:]
+
+    def intensity_now(self) -> float | None:
+        upcoming = self.upcoming()
+        return round(upcoming[0][1], 2) if upcoming else None
+
+    def expected_mm(self) -> float | None:
+        """Total rain expected over the remaining steps (intensity x 5 minutes)."""
+        upcoming = self.upcoming()
+        if not upcoming:
+            return None
+        return round(sum(a for _, a in upcoming) / 12, 1)
+
+    def attributes(self) -> dict[str, Any]:
+        upcoming = self.upcoming()
+        wet = [t for t, a in upcoming if a > 0]
+        start = end = None
+        if wet:
+            start = wet[0]
+            # End of the first shower: the first dry step after it starts.
+            after = [t for t, a in upcoming if t > start and a == 0]
+            end = after[0] if after else None
+        return {
+            "forecast": [
+                {"datetime": t.isoformat(), "intensity": round(a, 2)} for t, a in upcoming
+            ],
+            "rain_start": start.isoformat() if start else None,
+            "rain_end": end.isoformat() if end else None,
+            "max_intensity": round(max((a for _, a in upcoming), default=0), 2),
+            "radar_run": (self.data or {}).get("run"),
+        }

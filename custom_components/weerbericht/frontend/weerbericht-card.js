@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.4.2";
+const CARD_VERSION = "1.5.0";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -117,6 +117,17 @@ function iconFor(code, condition, night) {
   return iconSVG(spec, night);
 }
 
+const RAIN_STYLE = `
+  .rain-head { display: flex; justify-content: space-between; gap: 8px;
+    font-size: var(--ha-font-size-s, 12px); color: var(--secondary-text-color); line-height: 1.2; }
+  .rain-head b { color: var(--primary-text-color); font-weight: 500; }
+  .rain-chart { display: block; width: 100%; height: 36px; margin-top: 4px; }
+  .rain-chart .bar { fill: var(--weather-icon-rain-color, #30b3ff); }
+  .rain-chart .base { stroke: var(--divider-color, rgba(127,127,127,.4)); stroke-width: 1; }
+  .rain-axis { display: flex; justify-content: space-between; font-size: 11px;
+    color: var(--secondary-text-color); line-height: 1; margin-top: 2px; }
+`;
+
 const STYLE = `
   :host { display: block; height: 100%; }
   ha-card { cursor: pointer; height: 100%; display: flex; flex-direction: column;
@@ -153,6 +164,9 @@ const STYLE = `
   .cloud-front { fill: var(--weather-icon-cloud-front-color, #f9f9f9); }
   .snow { fill: var(--weather-icon-snow-color, #f9f9f9); }
   .hail { fill: var(--weather-icon-hail-color, #d4e8f5); }
+  .rain-now { padding: 12px 16px 0; }
+  .rain-now + .forecast { padding-top: 12px; }
+  ${RAIN_STYLE}
   .unavailable { height: 100px; display: flex; justify-content: center; align-items: center;
     font-size: var(--ha-font-size-l, 16px); }
 `;
@@ -338,6 +352,9 @@ const POPUP_STYLE = `
   .detail { background: rgba(127, 127, 127, 0.1); border-radius: 12px; padding: 8px 12px; }
   .detail .k { color: var(--secondary-text-color, #9b9b9b); font-size: 12px; }
   .detail .v { font-size: 16px; margin-top: 2px; }
+  .rain-pop { background: rgba(127, 127, 127, 0.1); border-radius: 12px; padding: 8px 12px; margin-bottom: 14px; }
+  .rain-pop .k { color: var(--secondary-text-color, #9b9b9b); font-size: 12px; margin-bottom: 4px; }
+  ${RAIN_STYLE}
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color, rgba(127,127,127,0.3)); margin-bottom: 8px; }
   .tab { flex: 1; padding: 10px; color: var(--secondary-text-color, #9b9b9b); border-radius: 0; border-bottom: 2px solid transparent; }
   .tab.on { color: var(--primary-color, #03a9f4); border-bottom-color: var(--primary-color, #03a9f4); }
@@ -380,6 +397,20 @@ const COMPASS = {
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// Rain graph of the KNMI app: intensity in mm/h per 5 minutes for the next two
+// hours. Bars use a log scale so light rain stays visible next to a downpour.
+function rainBars(points) {
+  const n = Math.max(points.length, 1);
+  const W = 240, H = 36, step = W / n;
+  const scale = (v) => Math.min(1, Math.log10(1 + v) / Math.log10(11));
+  const bars = points.map((p, i) => {
+    if (!(p.intensity > 0)) return "";
+    const h = Math.max(2, scale(p.intensity) * (H - 1));
+    return `<rect class="bar" x="${(i * step + step * 0.12).toFixed(2)}" y="${(H - 1 - h).toFixed(2)}" width="${(step * 0.76).toFixed(2)}" height="${h.toFixed(2)}" rx="1"/>`;
+  }).join("");
+  return `<svg class="rain-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line class="base" x1="0" y1="${H - 0.5}" x2="${W}" y2="${H - 0.5}"/>${bars}</svg>`;
+}
+
 class WeerberichtCard extends HTMLElement {
   constructor() {
     super();
@@ -401,6 +432,8 @@ class WeerberichtCard extends HTMLElement {
       show_current: t("Show current weather", "Huidig weer tonen"),
       show_forecast: t("Show forecast", "Verwachting tonen"),
       round_temperature: t("Round temperatures", "Temperaturen afronden"),
+      show_rain: t("Show expected rain", "Verwachte neerslag tonen"),
+      rain_entity: t("Expected rain sensor (optional)", "Sensor verwachte neerslag (optioneel)"),
       alert_glow: t("Glow during weather warnings", "Gloed bij weerwaarschuwingen"),
       alert_entity: t("Warning level from another entity (optional)", "Waarschuwingsniveau uit andere entiteit (optioneel)"),
       alert_glow_size: t("Glow size", "Grootte van de gloed"),
@@ -414,6 +447,8 @@ class WeerberichtCard extends HTMLElement {
         "Yellow, orange or red glow along the dashboard edges while a KNMI warning is out.",
         "Gele, oranje of rode gloed langs de randen van het dashboard zolang er een KNMI-waarschuwing is."),
       forecast_slots: t("Empty: as many as fit.", "Leeg: zoveel als er passen."),
+      show_rain: t("A small rain graph for the next 2 hours, only while rain is on its way.",
+        "Een kleine neerslaggrafiek voor de komende 2 uur, alleen als er regen op komst is."),
     };
     return {
       schema: [
@@ -433,6 +468,7 @@ class WeerberichtCard extends HTMLElement {
             { name: "show_current", default: true, selector: { boolean: {} } },
             { name: "show_forecast", default: true, selector: { boolean: {} } },
             { name: "round_temperature", selector: { boolean: {} } },
+            { name: "show_rain", default: true, selector: { boolean: {} } },
           ],
         },
         {
@@ -451,6 +487,7 @@ class WeerberichtCard extends HTMLElement {
             ] } } },
           ],
         },
+        { name: "rain_entity", selector: { entity: { domain: "sensor" } } },
         { name: "tap_action", selector: { ui_action: {} } },
       ],
       computeLabel: (schema) => LABELS[schema.name],
@@ -579,7 +616,7 @@ ${(err && err.stack) || ""}`,
   getGridOptions() {
     const rows = 1 + (this._config?.show_current !== false ? 1 : 0) +
       (this._config?.show_forecast !== false ? (this._config?.forecast_type === "daily" ? 2 : 1) : 0);
-    return { columns: 12, rows, min_columns: 5, min_rows: rows - 1 };
+    return { columns: 12, rows: "auto", min_columns: 5, min_rows: rows - 1 };
   }
 
   _stateText(stateObj) {
@@ -603,7 +640,7 @@ ${(err && err.stack) || ""}`,
     const lang = this._hass.locale?.language || undefined;
     const tz = this._hass.locale?.time_zone === "server" ? this._hass.config.time_zone : undefined;
     if (this._config.forecast_type === "hourly") {
-      return d.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit", timeZone: tz });
+      return d.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit", timeZone: tz, hour12: this._hour12() });
     }
     return d.toLocaleDateString(lang, { weekday: "short", timeZone: tz });
   }
@@ -633,6 +670,54 @@ ${(err && err.stack) || ""}`,
         this.dispatchEvent(ev);
       }
     }
+  }
+
+  // The "Expected rain" sensor of the same Weerbericht location, unless one is configured.
+  _rainState() {
+    const hass = this._hass;
+    let id = this._config.rain_entity;
+    if (!id && hass.entities) {
+      const device = hass.entities[this._config.entity]?.device_id;
+      id = Object.keys(hass.entities).find((e) => {
+        const r = hass.entities[e];
+        return r.platform === "weerbericht" && r.translation_key === "rain_expected" &&
+          (!device || r.device_id === device);
+      });
+    }
+    const st = id ? hass.states[id] : null;
+    if (!st || !Array.isArray(st.attributes.forecast)) return null;
+    // Drop the steps that have passed since the last update.
+    const now = Date.now() - 5 * 60 * 1000;
+    const points = st.attributes.forecast.filter((p) => new Date(p.datetime).getTime() > now);
+    return points.length ? { state: st, points } : null;
+  }
+
+  _rainSummary(rain) {
+    const T = (en, nl) => (this._lang() === "nl" ? nl : en);
+    const pts = rain.points;
+    const wet = (p) => p && p.intensity > 0;
+    if (!pts.some(wet)) return { text: T("Dry for the next 2 hours", "Droog de komende 2 uur"), amount: "" };
+    let text;
+    if (wet(pts[0])) {
+      const dry = pts.find((p) => !wet(p));
+      text = dry ? T(`Rain until ${this._time(dry.datetime)}`, `Regen tot ${this._time(dry.datetime)}`)
+        : T("Rain for the next 2 hours", "Regen de komende 2 uur");
+    } else {
+      const start = pts.find(wet);
+      text = T(`Rain from ${this._time(start.datetime)}`, `Regen vanaf ${this._time(start.datetime)}`);
+    }
+    const mm = pts.reduce((s, p) => s + (p.intensity || 0), 0) / 12;
+    const amount = mm < 0.05 ? `< ${this._fmt(0.1, 1)} mm` : `${this._fmt(mm, 1)} mm`;
+    return { text, amount };
+  }
+
+  _rainHtml(rain) {
+    const s = this._rainSummary(rain);
+    const pts = rain.points;
+    const mid = pts[Math.floor(pts.length / 2)], last = pts[pts.length - 1];
+    const now = this._lang() === "nl" ? "Nu" : "Now";
+    return `<div class="rain-head"><b>${esc(s.text)}</b><span>${esc(s.amount)}</span></div>${rainBars(pts)}
+      <div class="rain-axis"><span>${now}</span><span>${esc(this._time(mid.datetime))}</span><span>${esc(this._time(last.datetime))}</span></div>`;
   }
 
   _lang() {
@@ -668,6 +753,12 @@ ${(err && err.stack) || ""}`,
     this._popup = null;
   }
 
+  // The 12/24-hour choice in the user's Home Assistant profile (undefined: follow the language).
+  _hour12() {
+    const f = this._hass.locale?.time_format;
+    return f === "12" ? true : f === "24" ? false : undefined;
+  }
+
   _tz() {
     return this._hass.locale?.time_zone === "server" ? this._hass.config.time_zone : undefined;
   }
@@ -675,7 +766,7 @@ ${(err && err.stack) || ""}`,
   _time(iso) {
     if (!iso) return "";
     return new Date(iso).toLocaleTimeString(this._hass.locale?.language || undefined,
-      { hour: "2-digit", minute: "2-digit", timeZone: this._tz() });
+      { hour: "2-digit", minute: "2-digit", timeZone: this._tz(), hour12: this._hour12() });
   }
 
   _dayName(iso, index) {
@@ -717,6 +808,9 @@ ${(err && err.stack) || ""}`,
       detail(T("UV index", "UV-index"), a.uv_index != null ? esc(String(a.uv_index)) : ""),
       detail(T("Sunrise · sunset", "Zon op · onder"), a.sunrise ? `${this._time(a.sunrise)} · ${this._time(a.sunset)}` : ""),
     ].join("");
+
+    const rain = this._rainState();
+    const rainPopup = rain ? `<div class="rain-pop"><div class="k">${T("Rain, next 2 hours", "Neerslag komende 2 uur")}</div>${this._rainHtml(rain)}</div>` : "";
 
     const nowIcon = iconFor(a.weather_type, a.raw_condition || stateObj.state, a.night === true);
     const cond = this._stateText(stateObj);
@@ -770,6 +864,7 @@ ${(err && err.stack) || ""}`,
             <div><div class="temp">${a.temperature != null ? `${this._fmt(a.temperature, 0)}&nbsp;${esc(unit)}` : ""}</div>
             <div class="hl">${a.today_high != null ? `${this._fmt(a.today_high, 0)}° / ${this._fmt(a.today_low, 0)}°` : ""}</div></div></div>
           <div class="details">${details}</div>
+          ${rainPopup}
           <div class="tabs"><button class="tab${pop.tab === "hourly" ? " on" : ""}" data-tab="hourly">${T("Hourly", "Per uur")}</button>
             <button class="tab${pop.tab === "daily" ? " on" : ""}" data-tab="daily">${T("Daily", "Per dag")}</button></div>
           ${list}
@@ -832,6 +927,12 @@ ${(err && err.stack) || ""}`,
         </div>`;
     }
 
+    let rainHtml = "";
+    if (this._config.show_rain !== false) {
+      const rain = this._rainState();
+      if (rain && rain.points.some((p) => p.intensity > 0)) rainHtml = `<div class="rain-now">${this._rainHtml(rain)}</div>`;
+    }
+
     let fc = "";
     if (this._config.show_forecast !== false && forecast.length) {
       const fit = this._width ? Math.max(1, Math.floor((this._width - 32) / 64)) : 5;
@@ -849,7 +950,7 @@ ${(err && err.stack) || ""}`,
       fc = `<div class="forecast">${items}</div>`;
     }
 
-    this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card>${current}${fc}</ha-card>`;
+    this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card>${current}${rainHtml}${fc}</ha-card>`;
     this.shadowRoot.querySelector("ha-card").addEventListener("click", () => this._tap());
   }
 }

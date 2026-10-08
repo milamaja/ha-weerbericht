@@ -89,6 +89,15 @@ class WeerberichtClient:
             "weather/detail", {"location": cell, "region": region, "date": date}
         )
 
+    async def precipitation_run(self) -> str:
+        """Time of the latest rain radar run (needed to ask for the rain graph)."""
+        data = await self._get("precipitation/radar", {})
+        return data["time"]
+
+    async def precipitation_graph(self, cell: str, run: str) -> dict[str, Any]:
+        """Rain intensity (mm/h) in 5-minute steps for a grid cell, two hours either side of the run."""
+        return await self._get("precipitation/graph", {"location": cell, "time": run})
+
     async def meteoalarm(self) -> dict[str, Any]:
         """All current MeteoAlarm warnings for the Netherlands (large: about 1 MB)."""
         try:

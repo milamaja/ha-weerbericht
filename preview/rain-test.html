@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Weerbericht rain graph</title>
+<style>
+ body{background:#111;color:#e1e1e1;font-family:Roboto,Arial,sans-serif;margin:16px}
+ .row{display:flex;gap:16px;flex-wrap:wrap}
+ .slot{width:380px}
+ .slot h3{font-size:13px;font-weight:400;color:#9b9b9b}
+ weerbericht-card{display:block;background:#1c1c1c;border-radius:12px;color:#e1e1e1;--secondary-text-color:#9b9b9b}
+</style></head><body>
+<p>Mock cards with a made-up rain graph (5-minute steps from now). ?lang=nl for Dutch.</p>
+<div class="row" id="row"></div>
+<script src="../custom_components/weerbericht/frontend/weerbericht-card.js"></script>
+<script>
+const lang = new URLSearchParams(location.search).get("lang") || "en";
+const step = 5 * 60 * 1000;
+const t0 = Math.floor(Date.now() / step) * step;
+const series = (amounts) => amounts.map((a, i) => ({ datetime: new Date(t0 + i * step).toISOString(), intensity: a }));
+const zeros = (n) => Array(n).fill(0);
+const CASES = {
+  "Rain on its way": series([...zeros(5), 0.12, 0.48, 1.32, 2.52, 1.2, 0.36, ...zeros(13)]),
+  "Raining now": series([0.84, 1.8, 4.2, 9.6, 2.4, 0.24, ...zeros(18)]),
+  "Dry": series(zeros(24)),
+};
+const fc = [0, 1, 2, 3, 4].map((d) => ({ datetime: new Date(t0 + d * 864e5).toISOString(), temperature: 16 - d, templow: 9, weather_type: 1380, condition: "rainy" }));
+const row = document.getElementById("row");
+for (const [title, points] of Object.entries(CASES)) {
+  const hass = {
+    language: lang, locale: { language: lang, time_zone: "local" },
+    config: { time_zone: "Europe/Amsterdam", unit_system: { temperature: "°C" } },
+    entities: {
+      "weather.weerbericht": { entity_id: "weather.weerbericht", platform: "weerbericht", device_id: "d1" },
+      "sensor.weerbericht_expected_rain": { entity_id: "sensor.weerbericht_expected_rain", platform: "weerbericht", device_id: "d1", translation_key: "rain_expected" },
+    },
+    states: {
+      "weather.weerbericht": { entity_id: "weather.weerbericht", state: "rainy", attributes: { friendly_name: "Home", temperature: 16, temperature_unit: "°C", weather_type: 1380, raw_condition: "rainy", today_high: 16, today_low: 10, weather_text: "Lichte bui" } },
+      "sensor.weerbericht_expected_rain": { entity_id: "sensor.weerbericht_expected_rain", state: "0.5", attributes: { forecast: points } },
+    },
+    localize: (k) => ({ "component.weather.entity_component._.state.rainy": "Rainy" })[k] || "",
+    connection: { subscribeMessage: (cb) => { setTimeout(() => cb({ forecast: fc }), 0); return Promise.resolve(() => {}); } },
+  };
+  const slot = document.createElement("div");
+  slot.className = "slot";
+  slot.innerHTML = `<h3>${title}</h3>`;
+  const card = document.createElement("weerbericht-card");
+  slot.appendChild(card);
+  row.appendChild(slot);
+  card.setConfig({ entity: "weather.weerbericht", name: "Home" });
+  card.hass = hass;
+}
+</script></body></html>

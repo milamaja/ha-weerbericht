@@ -32,6 +32,9 @@ BASE_URL = "https://api.app.knmi.cloud"
 REQUEST_TIMEOUT = 20
 USER_AGENT = "ha-weerbericht/1.0.0 (+https://github.com/milamaja/ha-weerbericht)"
 UPDATE_INTERVAL = timedelta(minutes=20)
+# Rain graph of the KNMI app (radar nowcast for the grid cell): 5-minute steps,
+# two hours back and two hours ahead, a new run every 5 minutes.
+RAIN_INTERVAL = timedelta(minutes=5)
 
 # National precipitation radar loop as published on knmi.nl (no key needed),
 # a new image every 5 minutes.
