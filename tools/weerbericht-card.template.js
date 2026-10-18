@@ -449,15 +449,14 @@ function rainSummary(hass, all) {
   return `${text} · ${mm < 0.05 ? `< ${fmtNum(hass, 0.1, 1)}` : fmtNum(hass, mm, 1)} mm`;
 }
 
-// Rain levels of the KNMI app (mm/h): light up to 1, moderate up to 8, heavy up
-// to 15. Each level gets the same height, like the app's graph, so light rain
-// stays visible next to a downpour.
+// Rain levels of the KNMI app (mm/h): its graph is linear, with light at the
+// base line (0.1), moderate at 1 and heavy at 3, the top; more is cut off.
+const RAIN_LEVELS = [0.1, 1, 3];
+
+// Height of an intensity as a fraction of the graph (0 = base line, 1 = heavy).
 function rainBand(v) {
   if (!(v > 0)) return 0;
-  if (v <= 1) return v;
-  if (v <= 8) return 1 + (v - 1) / 7;
-  if (v <= 15) return 2 + (v - 8) / 7;
-  return Math.min(3.3, 3 + (v - 15) / 15);
+  return Math.min(1, Math.max(0, (v - 0.1) / (3 - 0.1)));
 }
 
 function rainGeometry(w, h, levels) {
@@ -475,25 +474,25 @@ function rainChart(hass, pts, w, h, opts = {}) {
   const n = pts.length;
   const STEP = 5 * 60 * 1000;
   const step = g.cw / n;
-  const top = 3.3;
   const base = g.t + g.ch;
-  const yb = (band) => base - (band / top) * g.ch;
   const t0 = pts[0].t, span = STEP * n;
   const xt = (t) => g.l + Math.min(1, Math.max(0, (t - t0) / span)) * g.cw;
   let out = "";
   if (levels) {
     const names = nl ? ["Licht", "Matig", "Zwaar"] : ["Light", "Moderate", "Heavy"];
     names.forEach((name, i) => {
-      const y = yb(i + 1).toFixed(1);
-      out += `<line class="lvl" x1="${g.l}" x2="${g.l + g.cw}" y1="${y}" y2="${y}"/>` +
-        `<text x="${g.l - 6}" y="${y}" text-anchor="end" dominant-baseline="middle">${name}</text>`;
+      const band = rainBand(RAIN_LEVELS[i]);
+      const y = (band > 0 ? base - band * g.ch : base - 0.5).toFixed(1);
+      // Light is the base line itself, drawn below.
+      if (band > 0) out += `<line class="lvl" x1="${g.l}" x2="${g.l + g.cw}" y1="${y}" y2="${y}"/>`;
+      out += `<text x="${g.l - 6}" y="${y}" text-anchor="end" dominant-baseline="middle">${name}</text>`;
     });
   }
   out += `<line class="base" x1="${g.l}" x2="${g.l + g.cw}" y1="${base - 0.5}" y2="${base - 0.5}"/>`;
   const now = Date.now();
   pts.forEach((p, i) => {
     if (!(p.v > 0)) return;
-    const hgt = Math.max(2, (rainBand(p.v) / top) * g.ch);
+    const hgt = Math.max(2, rainBand(p.v) * g.ch);
     const past = p.t + STEP <= now ? " past" : "";
     out += `<rect class="rain-bar${past}" x="${(g.l + i * step + step * 0.12).toFixed(1)}" y="${(base - hgt).toFixed(1)}" width="${(step * 0.76).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5"/>`;
   });

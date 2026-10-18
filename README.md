@@ -79,7 +79,7 @@ forecast_slots: 5         # optional, otherwise as many as fit
 
 It also supports `show_current: false`, `show_forecast: false`, `round_temperature: true` and a `tap_action` (`more-info`, `navigate`, `url` or `none`).
 
-Below the forecast the card can show the **rain graph** for your location, like the KNMI app: the last hour and the next 2 hours with a bar per 5 minutes, a dashed line at this moment, with lines for light, moderate and heavy rain (the KNMI app's levels: up to 1, 8 and 15 mm/h, each level equally high), a line with the value at this moment, and a summary such as "Rain from 14:25 · 0.6 mm".
+Below the forecast the card can show the **rain graph** for your location, like the KNMI app: the last hour and the next 2 hours with a bar per 5 minutes, a dashed line at this moment, with lines for light, moderate and heavy rain on the KNMI app's scale (light at the base line, 0.1 mm/h; moderate at 1 mm/h; heavy at 3 mm/h, the top of the graph; more is cut off), a line with the value at this moment, and a summary such as "Rain from 14:25 · 0.6 mm".
 
 - `show_rain: auto` (default) shows it only while rain is on its way, `always` keeps it there (also "Dry for the next 2 hours"), `never` leaves it out.
 - `rain_height: 136` sets its height in pixels (default 96).
