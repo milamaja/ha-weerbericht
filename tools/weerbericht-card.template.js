@@ -95,11 +95,11 @@ function iconFor(code, condition, night) {
 
 const RAIN_STYLE = `
   .rain-svg { display: block; overflow: visible; }
-  .rain-svg .bar { fill: var(--weather-icon-rain-color, #30b3ff); }
+  .rain-svg .rain-bar { fill: var(--weather-icon-rain-color, #30b3ff); }
   .rain-svg .lvl { stroke: var(--divider-color, rgba(127, 127, 127, 0.35)); stroke-width: 1; }
   .rain-svg .base { stroke: var(--secondary-text-color, #9b9b9b); stroke-opacity: 0.5; stroke-width: 1; }
   .rain-svg text { font-size: 11px; fill: var(--secondary-text-color, #9b9b9b); }
-  .rain-svg .bar.past { fill-opacity: 0.55; }
+  .rain-svg .rain-bar.past { fill-opacity: 0.55; }
   .rain-svg .now { stroke: var(--primary-text-color, #e1e1e1); stroke-width: 1.5; stroke-dasharray: 4 3; }
   .rain-svg .mark { stroke: var(--primary-text-color, #e1e1e1); stroke-width: 1.5; }
   .rain-svg .tip { fill: var(--secondary-background-color, #2b2b2b); stroke: var(--divider-color, rgba(127, 127, 127, 0.35)); }
@@ -331,7 +331,9 @@ const POPUP_STYLE = `
   .detail .k { color: var(--secondary-text-color, #9b9b9b); font-size: 12px; }
   .detail .v { font-size: 16px; margin-top: 2px; }
   .rain-pop { background: rgba(127, 127, 127, 0.1); border-radius: 12px; padding: 8px 12px; margin-bottom: 14px; }
-  .rain-pop .k { color: var(--secondary-text-color, #9b9b9b); font-size: 12px; margin-bottom: 4px; }
+  .rain-pop .k { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    color: var(--secondary-text-color, #9b9b9b); font-size: 12px; margin-bottom: 6px; }
+  .rain-pop .k b { color: var(--primary-text-color, #e1e1e1); font-weight: 500; }
   ${RAIN_STYLE}
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color, rgba(127,127,127,0.3)); margin-bottom: 8px; }
   .tab { flex: 1; padding: 10px; color: var(--secondary-text-color, #9b9b9b); border-radius: 0; border-bottom: 2px solid transparent; }
@@ -493,7 +495,7 @@ function rainChart(hass, pts, w, h, opts = {}) {
     if (!(p.v > 0)) return;
     const hgt = Math.max(2, (rainBand(p.v) / top) * g.ch);
     const past = p.t + STEP <= now ? " past" : "";
-    out += `<rect class="bar${past}" x="${(g.l + i * step + step * 0.12).toFixed(1)}" y="${(base - hgt).toFixed(1)}" width="${(step * 0.76).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5"/>`;
+    out += `<rect class="rain-bar${past}" x="${(g.l + i * step + step * 0.12).toFixed(1)}" y="${(base - hgt).toFixed(1)}" width="${(step * 0.76).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5"/>`;
   });
   // Time axis: every half hour when there is room, otherwise every hour.
   const every = g.cw / (span / (30 * 60 * 1000)) >= 46 ? 30 : 60;
@@ -503,9 +505,6 @@ function rainChart(hass, pts, w, h, opts = {}) {
     if (x < g.l + 16 || x > g.l + g.cw - 16) continue;
     out += `<line class="base" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${base}" y2="${base + 3}"/>` +
       `<text x="${x.toFixed(1)}" y="${h - 2}" text-anchor="middle">${esc(fmtTime(hass, t))}</text>`;
-  }
-  if (opts.summary) {
-    out += `<text class="sum" x="${g.l + g.cw}" y="14" text-anchor="end">${esc(opts.summary)}</text>`;
   }
   // Dashed line at "now"; the value box sits there unless a moment is pointed at.
   const nx = xt(now);
@@ -519,6 +518,15 @@ function rainChart(hass, pts, w, h, opts = {}) {
   const label = `${opts.cursor != null ? fmtTime(hass, pts[idx].t) : nl ? "Nu" : "Now"} · ${fmtNum(hass, pts[idx].v, 1)} ${nl ? "mm/u" : "mm/h"}`;
   const bw = label.length * 6.2 + 14;
   const bx = Math.min(w - bw, Math.max(0, mx - bw / 2));
+  // Summary on the right of the top line: shortened (without the amount) or
+  // left out when it would run into the value box.
+  if (opts.summary) {
+    const room = g.l + g.cw - (bx + bw) - 8;
+    const fits = (text) => text.length * 6.6 <= room;
+    const short = opts.summary.split(" · ")[0];
+    const text = fits(opts.summary) ? opts.summary : fits(short) ? short : "";
+    if (text) out += `<text class="sum" x="${g.l + g.cw}" y="14" text-anchor="end">${esc(text)}</text>`;
+  }
   out += `<rect class="tip" x="${bx.toFixed(1)}" y="1" width="${bw.toFixed(1)}" height="19" rx="5"/>` +
     `<text class="tiptext" x="${(bx + bw / 2).toFixed(1)}" y="14.5" text-anchor="middle">${esc(label)}</text>`;
   return `<svg class="rain-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${out}</svg>`;
@@ -887,7 +895,7 @@ ${(err && err.stack) || ""}`,
     ].join("");
 
     const rainPts = this._rainPoints();
-    const rainPopup = rainPts ? `<div class="rain-pop"><div class="k">${T("Rain, next 2 hours", "Neerslag komende 2 uur")}</div><div class="rain-slot"></div></div>` : "";
+    const rainPopup = rainPts ? `<div class="rain-pop"><div class="k"><span>${T("Rain, next 2 hours", "Neerslag komende 2 uur")}</span><b>${esc(rainSummary(this._hass, rainPts))}</b></div><div class="rain-slot"></div></div>` : "";
 
     const nowIcon = iconFor(a.weather_type, a.raw_condition || stateObj.state, a.night === true);
     const cond = this._stateText(stateObj);
@@ -954,7 +962,7 @@ ${(err && err.stack) || ""}`,
     if (hs) hs.scrollLeft = hoursLeft;
     const slot = root.querySelector(".rain-slot");
     if (slot && rainPts) {
-      slot.innerHTML = rainChart(this._hass, rainPts, slot.clientWidth || 300, 110, { summary: rainSummary(this._hass, rainPts) });
+      slot.innerHTML = rainChart(this._hass, rainPts, slot.clientWidth || 300, 110);
     }
     root.querySelector(".backdrop").addEventListener("click", (ev) => { if (ev.target === ev.currentTarget) this._closePopup(); });
     root.querySelector('[data-act="close"]').addEventListener("click", () => this._closePopup());
