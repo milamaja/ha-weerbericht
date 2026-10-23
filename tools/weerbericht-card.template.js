@@ -253,13 +253,23 @@ function positionGlow() {
 function updateGlow() {
   let best = null;
   let anchor = null;
+  let parts = null;
   for (const [card, level] of glowOwners) {
+    // Only cards on the page count: a card of a view that was left (and is
+    // later rebuilt by Home Assistant) must not hold on to the glow.
+    if (!card.isConnected) {
+      glowOwners.delete(card);
+      continue;
+    }
     if (level && (!best || GLOW_LEVELS.indexOf(level) > GLOW_LEVELS.indexOf(best))) {
-      best = level;
-      anchor = card;
+      const found = dashboardParts(card);
+      if (found) {
+        best = level;
+        anchor = card;
+        parts = found;
+      }
     }
   }
-  const parts = best ? dashboardParts(anchor) : null;
   if (!parts) {
     removeGlow();
     return;
@@ -711,7 +721,9 @@ ${(err && err.stack) || ""}`,
 
   _updateGlow(stateObj) {
     const cfg = this._config || {};
-    if (!cfg.alert_glow) {
+    // Not on the page (not attached yet, or a view that was left): no glow
+    // from this card; connectedCallback renders again once it is attached.
+    if (!cfg.alert_glow || !this.isConnected) {
       if (glowOwners.delete(this)) updateGlow();
       return;
     }
