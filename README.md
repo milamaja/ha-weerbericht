@@ -158,6 +158,11 @@ Home Assistant's built-in weather card and the entity popup work too, but they h
 
 One tile per alert level, each shown only for its own level. This uses Home Assistant's built-in card visibility option, no plugin needed. In a sections dashboard you can also set it on the **Visibility** tab of each card. That tab is missing for cards nested inside a grid or stack, so add these tiles as separate cards.
 
+<table>
+  <tr><th>English</th><th>Dutch</th></tr>
+  <tr><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/alert-tiles.png" width="380" alt="Two alert tiles: No warnings in green, and Weather warning in yellow with the KNMI text"></td><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/alert-tiles-nl.png" width="380" alt="Twee waarschuwingstegels: Geen waarschuwingen in groen, en Weerwaarschuwing in geel met de KNMI-tekst"></td></tr>
+</table>
+
 ```yaml
 - type: tile
   entity: sensor.weerbericht_weather_alert_text
@@ -201,6 +206,8 @@ One tile per alert level, each shown only for its own level. This uses Home Assi
 The tile state shows the KNMI warning text. The `hide_state` on the green tile hides "Geen waarschuwingen".
 
 ### Rain radar
+
+<p><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-radar.png" width="400" alt="KNMI rain radar of the Netherlands with a house marker at the configured location"></p>
 
 ```yaml
 type: picture-entity
