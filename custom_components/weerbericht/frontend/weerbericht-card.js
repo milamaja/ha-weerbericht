@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.5.4";
+const CARD_VERSION = "1.5.5";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -110,6 +110,45 @@ function iconSVG(spec, night) {
   out += precipitation(precip);
   if (bolt) out += path("sun", P.bolt);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 17 17">${out}</svg>`;
+}
+
+// The KNMI weather texts in English (the integration's weather_text is Dutch),
+// by KNMI weather type, so an English dashboard says "Light rain" like the
+// Dutch one says "Lichte regen" instead of Home Assistant's general "Rainy".
+const WEATHER_TEXT_EN = {
+  1372: "Sunny", 1373: "Clear", 1374: "Overcast", 1375: "Partly cloudy", 1376: "Partly cloudy",
+  1377: "Light rain", 1378: "Moderate rain", 1379: "Heavy rain",
+  1380: "Light shower with sunny intervals", 1381: "Light shower with sunny intervals",
+  1382: "Moderate shower with sunny intervals", 1383: "Moderate shower with sunny intervals",
+  1384: "Heavy shower with sunny intervals", 1385: "Heavy shower with sunny intervals",
+  1386: "Drizzle", 1387: "Drizzle with bright spells", 1388: "Drizzle with bright spells",
+  1389: "Thunderstorm with moderate rain", 1390: "Thunderstorm with heavy rain",
+  1391: "Thunderstorm with moderate rain and sunny intervals", 1392: "Thunderstorm with moderate rain and sunny intervals",
+  1393: "Thunderstorm with heavy rain and sunny intervals", 1394: "Thunderstorm with heavy rain and sunny intervals",
+  1395: "Thunderstorm with hail", 1396: "Thunderstorm with hail and sunny intervals", 1397: "Thunderstorm with hail and sunny intervals",
+  1398: "Wintry showers with thunder", 1399: "Wintry showers with thunder and sunny intervals", 1400: "Wintry showers with thunder and sunny intervals",
+  1401: "Snow shower with thunder", 1402: "Snow shower with thunder and sunny intervals", 1403: "Snow shower with thunder and sunny intervals",
+  1404: "Light snow shower", 1405: "Light snow shower with sunny intervals", 1406: "Light snow shower with sunny intervals",
+  1407: "Moderate snow shower", 1408: "Moderate snow shower with sunny intervals", 1409: "Moderate snow shower with sunny intervals",
+  1410: "Heavy snow shower", 1411: "Heavy snow shower with sunny intervals", 1412: "Heavy snow shower with sunny intervals",
+  1413: "Sleet shower", 1414: "Sleet shower with sunny intervals", 1415: "Sleet shower with sunny intervals",
+  1416: "Hail shower", 1417: "Hail shower with sunny intervals", 1418: "Hail shower with sunny intervals",
+  1419: "Freezing rain", 1420: "Fog", 1421: "Fog", 1422: "Fog",
+  1423: "Wind gusts", 1424: "Strong wind", 1425: "Strong wind",
+};
+
+// Width of a text in the card's font, for the rain graph's labels. Falls back
+// to an estimate where there is no canvas.
+let textCanvas = null;
+function textWidth(text, px, weight = 400) {
+  try {
+    textCanvas = textCanvas || document.createElement("canvas").getContext("2d");
+    const family = getComputedStyle(document.body).fontFamily || "Roboto, sans-serif";
+    textCanvas.font = `${weight} ${px}px ${family}`;
+    return textCanvas.measureText(text).width;
+  } catch (_err) {
+    return text.length * px * 0.56;
+  }
 }
 
 function iconFor(code, condition, night) {
@@ -556,13 +595,13 @@ function rainChart(hass, pts, w, h, opts = {}) {
     out += `<line class="mark" x1="${mx.toFixed(1)}" x2="${mx.toFixed(1)}" y1="20" y2="${base}"/>`;
   }
   const label = `${opts.cursor != null ? fmtTime(hass, pts[idx].t) : nl ? "Nu" : "Now"} · ${fmtNum(hass, pts[idx].v, 1)} ${nl ? "mm/u" : "mm/h"}`;
-  const bw = label.length * 6.2 + 14;
+  const bw = textWidth(label, 11, 500) + 14;
   const bx = Math.min(w - bw, Math.max(0, mx - bw / 2));
   // Summary on the right of the top line: shortened (without the amount) or
   // left out when it would run into the value box.
   if (opts.summary) {
     const room = g.l + g.cw - (bx + bw) - 8;
-    const fits = (text) => text.length * 6.6 <= room;
+    const fits = (text) => textWidth(text, 12) <= room;
     const short = opts.summary.split(" · ")[0];
     const text = fits(opts.summary) ? opts.summary : fits(short) ? short : "";
     if (text) out += `<text class="sum" x="${g.l + g.cw}" y="14" text-anchor="end">${esc(text)}</text>`;
@@ -796,6 +835,7 @@ ${(err && err.stack) || ""}`,
     const cond = a.raw_condition || stateObj.state;
     const lang = this._hass.locale?.language || this._hass.language || "en";
     if (lang.startsWith("nl") && a.weather_text) return a.weather_text;
+    if (!lang.startsWith("nl") && WEATHER_TEXT_EN[a.weather_type]) return WEATHER_TEXT_EN[a.weather_type];
     const key = `component.weather.entity_component._.state.${cond}`;
     return this._hass.localize(key) || this._hass.formatEntityState?.(stateObj) || cond;
   }
@@ -931,7 +971,7 @@ ${(err && err.stack) || ""}`,
       detail("Wind", a.wind_speed != null ? `${esc(dir)} ${this._fmt(a.wind_speed, 0)} km/h${a.beaufort != null ? ` · ${a.beaufort} Bft` : ""}` : ""),
       detail(T("Gusts", "Windstoten"), a.wind_gust_speed != null ? `${this._fmt(a.wind_gust_speed, 0)} km/h` : ""),
       detail(T("Rain today", "Neerslag vandaag"), rainToday),
-      detail(T("Sunshine today", "Zon vandaag"), a.sunshine_hours_today != null ? `${this._fmt(a.sunshine_hours_today, 0)} ${T("hours", "uur")}` : ""),
+      detail(T("Sunshine today", "Zon vandaag"), a.sunshine_hours_today != null ? `${this._fmt(a.sunshine_hours_today, 0)} ${Math.round(Number(a.sunshine_hours_today)) === 1 ? T("hour", "uur") : T("hours", "uur")}` : ""),
       detail(T("UV index", "UV-index"), a.uv_index != null ? esc(String(a.uv_index)) : ""),
       detail(T("Sunrise · sunset", "Zon op · onder"), a.sunrise ? `${this._time(a.sunrise)} · ${this._time(a.sunset)}` : ""),
     ].join("");
@@ -995,7 +1035,7 @@ ${(err && err.stack) || ""}`,
           <div class="tabs"><button class="tab${pop.tab === "hourly" ? " on" : ""}" data-tab="hourly">${T("Hourly", "Per uur")}</button>
             <button class="tab${pop.tab === "daily" ? " on" : ""}" data-tab="daily">${T("Daily", "Per dag")}</button></div>
           ${list}
-          <div class="foot">${esc(a.attribution || "Bron: KNMI")}</div>
+          <div class="foot">${esc(!a.attribution || a.attribution === "Bron: KNMI" ? T("Source: KNMI", "Bron: KNMI") : a.attribution)}</div>
         </div></div></div>`;
     const root = pop.host.shadowRoot;
     const sc = root.querySelector(".scroll");

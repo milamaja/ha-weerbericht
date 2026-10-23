@@ -125,6 +125,7 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         now = dt_util.utcnow()
         today = dt_util.now().date()
         out: list[dict[str, str]] = []
+        starts: list[datetime] = []
         seen: set[tuple[str, str, str]] = set()
         for warning in feed.get("warnings", []):
             alert = warning.get("alert") or {}
@@ -166,6 +167,7 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if key in seen:
                     continue
                 seen.add(key)
+                starts.append(onset or expires)
                 out.append(
                     {
                         "level": level,
@@ -174,9 +176,10 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         "details": str(info.get("description") or "").strip(),
                     }
                 )
+        # Highest level first, then in time order, like the KNMI's Dutch texts.
         order = {"red": 0, "orange": 1, "yellow": 2}
-        out.sort(key=lambda a: order[a["level"]])
-        return out
+        ranked = sorted(zip(out, starts), key=lambda pair: (order[pair[0]["level"]], pair[1]))
+        return [alert for alert, _ in ranked]
 
     def _reshape(
         self, summary: dict[str, Any], details: dict[str, dict[str, Any]]
