@@ -68,7 +68,7 @@ Entity IDs depend on the name you gave the integration and on your Home Assistan
 ### Weerbericht card
 
 <table>
-  <tr><th>English</th><th>Nederlands</th></tr>
+  <tr><th>English</th><th>Dutch</th></tr>
   <tr><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/weather-card.png" width="380" alt="Weerbericht card for Utrecht: light rain, 12 °C, the 5-day forecast and the rain graph"></td><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/weather-card-nl.png" width="380" alt="Weerbericht-kaart voor Utrecht: lichte regen, 12 °C, de 5-daagse verwachting en de neerslaggrafiek"></td></tr>
 </table>
 
@@ -102,14 +102,14 @@ show_summary: true
 Point at the graph (or tap it on a touch screen) to see the value at that moment.
 
 <table>
-  <tr><th>English</th><th>Nederlands</th></tr>
+  <tr><th>English</th><th>Dutch</th></tr>
   <tr><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-card.png" width="380" alt="Rain card for Utrecht: the rain expected in the next 2 hours"></td><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-card-nl.png" width="380" alt="Neerslagkaart voor Utrecht: de verwachte regen in de komende 2 uur"></td></tr>
 </table>
 
 Without a `tap_action`, tapping the card opens the **Weerbericht popup**: the current weather with the KNMI icon and description, a warning bar in the KNMI colour, wind with direction and Beaufort, gusts, rain today (amount and chance), hours of sunshine, UV index, sunrise and sunset, the rain graph for the next 2 hours, and tabs with the hourly forecast and up to 15 days with temperature bars and rain. The chart button in the popup opens Home Assistant's own dialog for history graphs. With a Dutch Home Assistant the condition is shown in the KNMI wording ("Opklaringen", "Lichte bui, afgewisseld door zon").
 
 <table>
-  <tr><th>English</th><th>Nederlands</th></tr>
+  <tr><th>English</th><th>Dutch</th></tr>
   <tr><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup.png" width="380" alt="The popup for Amsterdam: a code yellow warning, wind, rain, sunshine and the hourly forecast"></td><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup-nl.png" width="380" alt="De popup voor Amsterdam: waarschuwing code geel, wind, neerslag, zon en de verwachting per uur"></td></tr>
 </table>
 
@@ -118,7 +118,7 @@ Without a `tap_action`, tapping the card opens the **Weerbericht popup**: the cu
 Add `alert_glow: true` to the card and the dashboard gets a soft, slowly pulsing glow along its edges while a KNMI weather warning is out: yellow, orange or red, following the KNMI code. No glow when there is no warning.
 
 <table>
-  <tr><th>English</th><th>Nederlands</th></tr>
+  <tr><th>English</th><th>Dutch</th></tr>
   <tr><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/glow.png" width="380" alt="A dashboard with the yellow warning glow around its edges during a code yellow"></td><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/glow-nl.png" width="380" alt="Een dashboard met de gele waarschuwingsgloed langs de randen tijdens code geel"></td></tr>
 </table>
 
