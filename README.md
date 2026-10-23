@@ -110,7 +110,7 @@ Without a `tap_action`, tapping the card opens the **Weerbericht popup**: the cu
 
 <table>
   <tr><th>English</th><th>Dutch</th></tr>
-  <tr><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup.png" width="380" alt="The popup for Amsterdam: a code yellow warning, wind, rain, sunshine and the hourly forecast"></td><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup-nl.png" width="380" alt="De popup voor Amsterdam: waarschuwing code geel, wind, neerslag, zon en de verwachting per uur"></td></tr>
+  <tr><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup-daily.png" width="380" alt="The popup for Amsterdam: a code yellow warning, wind, rain, sunshine, the rain graph and the forecast per day"></td><td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup-daily-nl.png" width="380" alt="De popup voor Amsterdam: waarschuwing code geel, wind, neerslag, zon, de neerslaggrafiek en de verwachting per dag"></td></tr>
 </table>
 
 #### Weather alert glow
