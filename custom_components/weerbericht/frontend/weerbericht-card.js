@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.5.2";
+const CARD_VERSION = "1.5.3";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -254,6 +254,13 @@ function positionGlow() {
     removeGlow();
     return;
   }
+  // Home Assistant can clear the view container while the card stays on the
+  // page (it happens now and then on a view change): place the glow again.
+  if (!glowEl.isConnected) {
+    removeGlow();
+    updateGlow();
+    return;
+  }
   const v = view.getBoundingClientRect();
   const h = header ? header.getBoundingClientRect() : null;
   const top = h && h.height > 0 ? Math.max(0, h.bottom) : Math.max(0, v.top);
@@ -281,7 +288,7 @@ function updateGlow() {
     removeGlow();
     return;
   }
-  if (!glowEl || glowEl._parts.view !== parts.view) {
+  if (!glowEl || !glowEl.isConnected || glowEl._parts.view !== parts.view) {
     removeGlow();
     parts.view.style.isolation = "isolate";
     glowEl = document.createElement("div");

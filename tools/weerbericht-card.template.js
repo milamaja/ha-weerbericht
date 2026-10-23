@@ -230,6 +230,13 @@ function positionGlow() {
     removeGlow();
     return;
   }
+  // Home Assistant can clear the view container while the card stays on the
+  // page (it happens now and then on a view change): place the glow again.
+  if (!glowEl.isConnected) {
+    removeGlow();
+    updateGlow();
+    return;
+  }
   const v = view.getBoundingClientRect();
   const h = header ? header.getBoundingClientRect() : null;
   const top = h && h.height > 0 ? Math.max(0, h.bottom) : Math.max(0, v.top);
@@ -257,7 +264,7 @@ function updateGlow() {
     removeGlow();
     return;
   }
-  if (!glowEl || glowEl._parts.view !== parts.view) {
+  if (!glowEl || !glowEl.isConnected || glowEl._parts.view !== parts.view) {
     removeGlow();
     parts.view.style.isolation = "isolate";
     glowEl = document.createElement("div");
