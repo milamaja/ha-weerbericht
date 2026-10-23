@@ -6,6 +6,29 @@ It reads the same backend the KNMI app uses (`api.app.knmi.cloud`, published as 
 
 Weerbericht is an independent project. It is not made by, endorsed by, or affiliated with KNMI. The weather data is produced by KNMI (Koninklijk Nederlands Meteorologisch Instituut).
 
+<p>
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/weather-card.png" width="400" alt="Weerbericht card for Utrecht: light rain, 12 °C, the 5-day forecast and the rain graph">
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-card.png" width="400" alt="Rain card for Utrecht: the rain expected in the next 2 hours">
+</p>
+<p>
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup.png" width="400" alt="The popup: a code yellow warning, wind, rain, sunshine and the hourly forecast">
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/glow.png" width="400" alt="A dashboard with the yellow warning glow around its edges">
+</p>
+
+*KNMI data for Utrecht, and for Amsterdam during a code yellow.*
+
+<details>
+<summary>Nederlands</summary>
+<p>
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/weather-card-nl.png" width="400" alt="Weerbericht-kaart voor Utrecht: lichte regen, 12 °C, de 5-daagse verwachting en de neerslaggrafiek">
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-card-nl.png" width="400" alt="Neerslagkaart voor Utrecht: de verwachte regen in de komende 2 uur">
+</p>
+<p>
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/popup-nl.png" width="400" alt="De popup: waarschuwing code geel, wind, neerslag, zon en de verwachting per uur">
+  <img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/glow-nl.png" width="400" alt="Een dashboard met de gele waarschuwingsgloed langs de randen">
+</p>
+</details>
+
 ## What you get
 
 For each configured location:
