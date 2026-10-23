@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.5.6";
+const CARD_VERSION = "1.5.29";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
