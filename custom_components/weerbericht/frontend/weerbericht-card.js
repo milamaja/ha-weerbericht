@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.5.29";
+const CARD_VERSION = "1.6.30";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -425,6 +425,9 @@ const POPUP_STYLE = `
   .hour svg { width: 36px; height: 36px; margin: 4px 0; }
   .hour .deg { font-size: 16px; }
   .rainv { color: #30b3ff; font-size: 12px; min-height: 15px; }
+  .hour .wind { display: flex; align-items: center; justify-content: center; gap: 2px; margin-top: 4px;
+    color: var(--secondary-text-color, #9b9b9b); font-size: 12px; white-space: nowrap; }
+  .hour .wind svg { width: 14px; height: 14px; margin: 0; fill: currentColor; flex: none; }
   .day { display: grid; grid-template-columns: 84px 36px 1fr; align-items: center; gap: 10px;
     padding: 8px 0; border-bottom: 1px solid var(--divider-color, rgba(127,127,127,0.15)); }
   .day:last-child { border-bottom: 0; }
@@ -449,6 +452,8 @@ const POPUP_STYLE = `
 `;
 const MDI_CLOSE = "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z";
 const MDI_CHART = "M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z";
+// Narrow arrowhead pointing up, rotated to where the wind goes.
+const WIND_ARROW = "M12,2.5L18.5,21.5L12,16.5L5.5,21.5Z";
 const COMPASS = {
   en: ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"],
   nl: ["N", "NNO", "NO", "ONO", "O", "OZO", "ZO", "ZZO", "Z", "ZZW", "ZW", "WZW", "W", "WNW", "NW", "NNW"],
@@ -990,9 +995,16 @@ ${(err && err.stack) || ""}`,
       list = hours === null ? loading : `<div class="hours">${hours.map((h) => {
         const night = h.is_daytime === false;
         const rain = h.precipitation > 0 ? `${this._fmt(h.precipitation, 1)} mm` : h.precipitation_probability ? `${h.precipitation_probability}%` : "";
+        // Like the KNMI app: an arrow to where the wind goes, and the force in Beaufort.
+        const force = h.beaufort != null ? `${h.beaufort} Bft`
+          : h.wind_speed != null ? `${this._fmt(h.wind_speed, 0)} ${a.wind_speed_unit || "km/h"}` : "";
+        const arrow = h.wind_bearing != null
+          ? `<svg viewBox="0 0 24 24" style="transform:rotate(${(Number(h.wind_bearing) + 180) % 360}deg)"><path d="${WIND_ARROW}"/></svg>` : "";
+        const windTitle = h.wind_speed != null ? `${h.wind_bearing != null ? `${COMPASS[lang][Math.round(Number(h.wind_bearing) / 22.5) % 16]} ` : ""}${this._fmt(h.wind_speed, 0)} ${a.wind_speed_unit || "km/h"}` : "";
+        const wind = force ? `<div class="wind" title="${esc(windTitle)}">${arrow}${esc(force)}</div>` : "";
         return `<div class="hour${night ? " night" : ""}"><div class="t">${esc(this._time(h.datetime))}</div>
           ${iconFor(h.weather_type, h.condition, night)}<div class="deg">${deg(h.temperature)}</div>
-          <div class="rainv">${esc(rain)}</div></div>`;
+          <div class="rainv">${esc(rain)}</div>${wind}</div>`;
       }).join("")}</div>`;
     } else {
       const days = pop.fc.daily;

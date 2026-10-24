@@ -32,6 +32,7 @@ FORECAST_KEYS = (
     "wind_speed",
     "wind_gust_speed",
     "wind_bearing",
+    "beaufort",
     "uv_index",
     "is_daytime",
     "weather_type",

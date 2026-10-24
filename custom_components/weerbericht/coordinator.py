@@ -203,6 +203,7 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "wind_speed": wind.get("speed"),
                     "wind_gust_speed": wind.get("gusts"),
                     "wind_bearing": wind.get("degree"),
+                    "beaufort": wind.get("beaufort"),
                     "alert_level": h.get("alertLevel", "none"),
                     "heat_index": h.get("heatIndex"),
                 }
