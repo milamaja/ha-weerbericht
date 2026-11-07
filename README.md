@@ -44,7 +44,9 @@ Or go to **Settings, Devices & services, Add integration** and search for **Weer
 
 - **Name**: used for the device and the entity IDs, for example `Weerbericht`.
 - **Latitude / Longitude**: default to your home location. The forecast is per grid cell of roughly 9 km, the same cells the app uses.
-- **Warning region**: the province used for weather alerts.
+- **Warning region**: the province used for weather alerts that are still issued per province.
+
+Since November 2026 the KNMI warns for the area where the weather actually happens, no longer for whole provinces. For those local warnings the integration needs the place (woonplaats) of the location: on the first start it looks up its BAG code once with [PDOK](https://www.pdok.nl), the government's free location service (only the coordinate is sent), and stores it with the location. Province warnings and local warnings both show up.
 
 You can add the integration more than once for several locations.
 
@@ -57,7 +59,7 @@ Under **Settings, Devices & services, Weerbericht, Configure** you choose the la
 The warning texts come in two languages:
 
 - **Dutch** (default): the KNMI's own texts, straight from the KNMI app, for example "Code geel voor dichte mist vanaf 01:00 tot 10:00".
-- **English**: the same warnings from [MeteoAlarm](https://meteoalarm.org), the European warning service the KNMI also publishes to, for example "Code yellow: moderate fog warning from 01:00 until 10:00". They are only fetched while a warning is out.
+- **English**: the same warnings from [MeteoAlarm](https://meteoalarm.org), the European warning service the KNMI also publishes to, for example "Code yellow: moderate fog warning from 01:00 until 10:00". They are only fetched while a warning is out. Province warnings are matched by province, local warnings by their area: a warning counts when the location lies inside it.
 
 The warning level (and the glow on the card) always comes from the KNMI.
 

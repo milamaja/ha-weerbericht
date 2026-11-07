@@ -27,8 +27,14 @@ CONF_REGION = "region"
 CONF_WARNING_LANGUAGE = "warning_language"
 WARNING_LANGUAGES = ["nl", "en"]
 CONF_RADAR_MARKER = "radar_marker"
+# BAG place code of the location ("wp3594" for Amsterdam), looked up once; the KNMI app needs
+# it for local warnings (since November 2026 no longer per province).
+CONF_LOCALITY = "locality"
 
 BASE_URL = "https://api.app.knmi.cloud"
+# PDOK Locatieserver (the government's free location service): the place
+# (woonplaats) of a coordinate, with its BAG code.
+PDOK_REVERSE_URL = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse"
 REQUEST_TIMEOUT = 20
 USER_AGENT = "ha-weerbericht/1.0.0 (+https://github.com/milamaja/ha-weerbericht)"
 UPDATE_INTERVAL = timedelta(minutes=20)

@@ -60,6 +60,46 @@ def _max_alert(levels: list[str]) -> str:
     return ALERT_LEVELS[best]
 
 
+def _inside(lat: float, lon: float, ring: list[tuple[float, float]]) -> bool:
+    """Is the point inside the polygon (a list of (lat, lon) corners)? Ray casting."""
+    inside = False
+    j = len(ring) - 1
+    for i, (lat_i, lon_i) in enumerate(ring):
+        lat_j, lon_j = ring[j]
+        if (lat_i > lat) != (lat_j > lat) and lon < (lon_j - lon_i) * (lat - lat_i) / (lat_j - lat_i) + lon_i:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _cap_polygon(text: str) -> list[tuple[float, float]]:
+    """A CAP polygon ("lat,lon lat,lon ...", as MeteoAlarm uses) as (lat, lon) corners."""
+    corners: list[tuple[float, float]] = []
+    for pair in str(text).split():
+        lat, _, lon = pair.partition(",")
+        try:
+            corners.append((float(lat), float(lon)))
+        except ValueError:
+            continue
+    return corners
+
+
+_NL_DAYS = ["ma", "di", "wo", "do", "vr", "za", "zo"]
+
+
+def _when(moment: datetime, language: str) -> str:
+    """A warning time as the KNMI app says it: 15:00, tomorrow 03:00, or with the day."""
+    local = dt_util.as_local(moment)
+    days = (local.date() - dt_util.now().date()).days
+    if days == 0:
+        return local.strftime("%H:%M")
+    if days == 1:
+        return ("tomorrow " if language == "en" else "morgen ") + local.strftime("%H:%M")
+    if language == "en":
+        return local.strftime("%a %d %b %H:%M")
+    return f"{_NL_DAYS[local.weekday()]} {local.day} {local.strftime('%H:%M')}"
+
+
 class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Poll the KNMI app backend."""
 
@@ -70,6 +110,9 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         client: WeerberichtClient,
         cell: str,
         region: str,
+        latitude: float,
+        longitude: float,
+        locality: str | None,
     ) -> None:
         super().__init__(
             hass,
@@ -81,19 +124,32 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.client = client
         self.cell = cell
         self.region = region
+        self.latitude = latitude
+        self.longitude = longitude
+        # BAG place code for the local warnings; None until PDOK has answered.
+        self.locality = locality
         # Dutch (the KNMI's own texts) unless English is chosen in the settings.
         self.language = entry.options.get(CONF_WARNING_LANGUAGE, "nl")
         self.rain: WeerberichtRainCoordinator | None = None
+        # Full texts of local warnings, by warning id (they do not change).
+        self._local_texts: dict[str, dict[str, Any]] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
+        if not self.locality:
+            # Not found at setup (PDOK unreachable): try again; kept in memory,
+            # stored on the next start.
+            try:
+                self.locality = await self.client.locality(self.latitude, self.longitude)
+            except WeerberichtError as err:
+                _LOGGER.debug("Place code for local warnings still unknown: %s", err)
         try:
-            summary = await self.client.weather(self.cell, self.region)
+            summary = await self.client.weather(self.cell, self.region, self.locality)
             details: dict[str, dict[str, Any]] = {}
             for day in summary.get("daily", {}).get("forecast", []):
                 date = day.get("date")
                 if date:
                     details[date] = await self.client.weather_detail(
-                        self.cell, self.region, date
+                        self.cell, self.region, date, self.locality
                     )
         except WeerberichtError as err:
             raise UpdateFailed(str(err)) from err
@@ -102,11 +158,14 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             data = self._reshape(summary, details)
         except (KeyError, TypeError, ValueError) as err:
             raise UpdateFailed(f"unexpected response: {err!r}") from err
+        data["local_alerts"] = await self._local_alerts(summary.get("localAlerts") or [])
 
         # English warning texts: only looked up when English is chosen and the
         # KNMI app reports a warning (the MeteoAlarm feed is about 1 MB).
         data["alerts_en"] = None
-        if self.language == "en" and (data["alerts"] or self._max_hourly_level(data) != "none"):
+        if self.language == "en" and (
+            data["alerts"] or data["local_alerts"] or self._max_hourly_level(data) != "none"
+        ):
             try:
                 data["alerts_en"] = self._meteoalarm_alerts(await self.client.meteoalarm())
             except WeerberichtError as err:
@@ -119,8 +178,52 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _max_hourly_level(data: dict[str, Any]) -> str:
         return _max_alert([h.get("alert_level", "none") for h in data.get("hourly", [])[:24]])
 
+    async def _local_alerts(self, items: list[Any]) -> list[dict[str, Any]]:
+        """The local warnings for this place, with the KNMI's headline and texts.
+
+        The weather call only gives level, times and a short explanation ("Dichte
+        mist"); the full text is fetched once per warning.
+        """
+        out: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            alert_id = str(item["id"])
+            if alert_id not in self._local_texts:
+                try:
+                    full = await self.client.local_alert(alert_id)
+                except WeerberichtError as err:
+                    _LOGGER.debug("Text of local warning %s unavailable: %s", alert_id, err)
+                    full = None
+                if isinstance(full, dict) and str(full.get("id")) == alert_id:
+                    self._local_texts[alert_id] = {
+                        "headline": str(full.get("headline") or "").strip(),
+                        "description": str(full.get("description") or "").strip(),
+                        "detailed": str(full.get("detailedDescription") or "").strip(),
+                    }
+            text = self._local_texts.get(alert_id, {})
+            out.append(
+                {
+                    "id": alert_id,
+                    "level": str(item.get("level") or "none").lower(),
+                    "onset": item.get("onset"),
+                    "expires": item.get("expires"),
+                    "explanation": str(item.get("explanation") or "").strip(),
+                    "headline": text.get("headline", ""),
+                    "description": text.get("description", ""),
+                    "detailed": text.get("detailed", ""),
+                }
+            )
+        current = {a["id"] for a in out}
+        self._local_texts = {k: v for k, v in self._local_texts.items() if k in current}
+        return out
+
     def _meteoalarm_alerts(self, feed: dict[str, Any]) -> list[dict[str, str]]:
-        """English yellow/orange/red warnings for this region that have not expired."""
+        """English yellow/orange/red warnings for this location that have not expired.
+
+        Province warnings carry the region's EMMA code; local warnings (since
+        November 2026) only a polygon, so those count when the location is inside.
+        """
         emma = REGION_EMMA.get(str(self.region))
         now = dt_util.utcnow()
         today = dt_util.now().date()
@@ -134,12 +237,17 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for info in alert.get("info") or []:
                 if not str(info.get("language", "")).lower().startswith("en"):
                     continue
-                codes = {
-                    g.get("value")
-                    for area in info.get("area") or []
-                    for g in area.get("geocode") or []
-                }
-                if emma not in codes:
+                areas = info.get("area") or []
+                codes = {g.get("value") for area in areas for g in area.get("geocode") or []}
+                polygons = [
+                    _cap_polygon(p)
+                    for area in areas
+                    for p in (area.get("polygon") if isinstance(area.get("polygon"), list) else [area.get("polygon") or ""])
+                ]
+                in_area = any(
+                    len(ring) >= 3 and _inside(self.latitude, self.longitude, ring) for ring in polygons
+                )
+                if emma not in codes and not in_area:
                     continue
                 level = ""
                 for param in info.get("parameter") or []:
@@ -339,7 +447,7 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ]
 
     def _knmi_alerts(self) -> list[dict[str, str]]:
-        """Active KNMI warnings from the app, in Dutch."""
+        """Active KNMI warnings from the app, in Dutch: per province and local."""
         out: list[dict[str, str]] = []
         for a in (self.data or {}).get("alerts", []):
             if not isinstance(a, dict):
@@ -350,6 +458,24 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 out.append(
                     {"level": level if level in ALERT_LEVELS else "none", "description": description}
                 )
+        now = dt_util.utcnow()
+        for a in (self.data or {}).get("local_alerts", []):
+            expires = dt_util.parse_datetime(a.get("expires") or "")
+            if expires is not None and expires <= now:
+                continue
+            onset = dt_util.parse_datetime(a.get("onset") or "")
+            title = (a.get("headline") or a.get("explanation") or "").removesuffix(".")
+            if not title:
+                continue
+            span = ""
+            if expires is not None:
+                span = (f", van {_when(onset, 'nl')} tot {_when(expires, 'nl')}"
+                        if onset is not None and onset > now else f", tot {_when(expires, 'nl')}")
+            details = " ".join(t for t in (a.get("description"), a.get("detailed")) if t)
+            level = a["level"] if a["level"] in ALERT_LEVELS else "none"
+            if any(o["description"].startswith(title) and o["level"] == level for o in out):
+                continue
+            out.append({"level": level, "description": title + span, "details": details})
         return out
 
     def alert_level_24h(self) -> str:

@@ -107,7 +107,10 @@ SENSORS: tuple[WeerberichtSensorDescription, ...] = (
         options=ALERT_LEVELS,
         icon="mdi:alert",
         value_fn=lambda c: c.alert_level_24h(),
-        attributes_fn=lambda c: {"alerts": (c.data or {}).get("alerts", [])},
+        attributes_fn=lambda c: {
+            "alerts": (c.data or {}).get("alerts", []),
+            "local_alerts": (c.data or {}).get("local_alerts", []),
+        },
     ),
     WeerberichtSensorDescription(
         key="alert_text",

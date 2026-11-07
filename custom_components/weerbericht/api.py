@@ -24,6 +24,7 @@ from .const import (
     GRID_SW_LON,
     METEOALARM_TIMEOUT,
     METEOALARM_URL,
+    PDOK_REVERSE_URL,
     RADAR_ELLIPSOID,
     RADAR_LAT_TS,
     RADAR_NE,
@@ -112,15 +113,52 @@ class WeerberichtClient:
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise WeerberichtConnectionError(f"{endpoint}: {err}") from err
 
-    async def weather(self, cell: str, region: str) -> dict[str, Any]:
-        """Summary: current values, 60 hourly and 7 daily forecast entries."""
-        return await self._get("weather", {"location": cell, "region": region})
+    async def weather(self, cell: str, region: str, locality: str | None = None) -> dict[str, Any]:
+        """Summary: current values, 60 hourly and 7 daily forecast entries.
 
-    async def weather_detail(self, cell: str, region: str, date: str) -> dict[str, Any]:
+        Province warnings come per region; local warnings (localAlerts, and the
+        hourly alert levels) only when the place code is given as well.
+        """
+        params = {"location": cell, "region": region}
+        if locality:
+            params["locality"] = locality
+        return await self._get("weather", params)
+
+    async def weather_detail(
+        self, cell: str, region: str, date: str, locality: str | None = None
+    ) -> dict[str, Any]:
         """Per-day detail: precipitation chance, wind, sunshine, UV, 14-day outlook."""
-        return await self._get(
-            "weather/detail", {"location": cell, "region": region, "date": date}
-        )
+        params = {"location": cell, "region": region, "date": date}
+        if locality:
+            params["locality"] = locality
+        return await self._get("weather/detail", params)
+
+    async def local_alert(self, alert_id: str) -> dict[str, Any]:
+        """A local warning in full: headline, description, the parts with their areas."""
+        return await self._get("alerts/local", {"id": alert_id})
+
+    async def locality(self, latitude: float, longitude: float) -> str | None:
+        """The BAG place code of a coordinate ("wp3594" for Amsterdam), or None.
+
+        Looked up with PDOK; the nearest place counts for a location outside a
+        built-up area.
+        """
+        try:
+            async with self._session.get(
+                PDOK_REVERSE_URL,
+                params={"lat": str(latitude), "lon": str(longitude), "type": "woonplaats",
+                        "rows": "1", "fl": "woonplaatscode,woonplaatsnaam"},
+                headers={"User-Agent": USER_AGENT},
+                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
+            ) as resp:
+                if resp.status >= 400:
+                    raise WeerberichtConnectionError(f"PDOK: HTTP {resp.status}")
+                data = await resp.json(content_type=None)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            raise WeerberichtConnectionError(f"PDOK: {err}") from err
+        docs = (data.get("response") or {}).get("docs") or []
+        code = str(docs[0].get("woonplaatscode") or "") if docs else ""
+        return f"wp{int(code):04d}" if code.isdigit() else None
 
     async def precipitation_run(self) -> str:
         """Time of the latest rain radar run (needed to ask for the rain graph)."""
