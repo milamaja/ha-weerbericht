@@ -18,8 +18,8 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
-from .api import WeerberichtClient, WeerberichtError, grid_cell, radar_cell
-from .const import CONF_LOCALITY, CONF_REGION, DOMAIN
+from .api import WeerberichtClient, grid_cell, load_places, nearest_place, radar_cell
+from .const import CONF_REGION, DOMAIN
 from .coordinator import (
     WeerberichtConfigEntry,
     WeerberichtCoordinator,
@@ -127,19 +127,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeerberichtConfigEntry) 
         raise ConfigEntryNotReady("location is outside the KNMI forecast grid")
 
     client = WeerberichtClient(async_get_clientsession(hass))
-    # The place code for local warnings (since November 2026 the KNMI warns per
-    # area, not per province): looked up once and stored with the location.
+    # The place for local warnings (since November 2026 the KNMI warns per area,
+    # not per province): the nearest place centre from the built-in BAG list.
     latitude, longitude = entry.data[CONF_LATITUDE], entry.data[CONF_LONGITUDE]
-    locality = entry.data.get(CONF_LOCALITY)
-    if not locality:
-        try:
-            locality = await client.locality(latitude, longitude)
-        except WeerberichtError as err:
-            _LOGGER.warning("Place code for local KNMI warnings not found yet, retrying later: %s", err)
-        if locality:
-            hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_LOCALITY: locality})
+    places = await hass.async_add_executor_job(load_places)
+    place = nearest_place(places, latitude, longitude)
     coordinator = WeerberichtCoordinator(
-        hass, entry, client, cell, entry.data[CONF_REGION], latitude, longitude, locality
+        hass, entry, client, cell, entry.data[CONF_REGION], latitude, longitude, place
     )
     await coordinator.async_config_entry_first_refresh()
     # The rain graph is extra: if it fails, the rain sensors start unavailable

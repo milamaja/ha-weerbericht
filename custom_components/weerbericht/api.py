@@ -7,8 +7,10 @@ stability guarantee for it, unlike the KNMI Data Platform.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -24,7 +26,6 @@ from .const import (
     GRID_SW_LON,
     METEOALARM_TIMEOUT,
     METEOALARM_URL,
-    PDOK_REVERSE_URL,
     RADAR_ELLIPSOID,
     RADAR_LAT_TS,
     RADAR_NE,
@@ -36,6 +37,31 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+PLACES_FILE = Path(__file__).parent / "places.json"
+# Farther than this from every place centre: not in the Netherlands, no place code.
+PLACE_MAX_KM = 25
+
+
+def load_places() -> list[list[Any]]:
+    """The built-in list of Dutch places: [code, name, lat, lon] (blocking file read)."""
+    return json.loads(PLACES_FILE.read_text(encoding="utf-8"))["places"]
+
+
+def nearest_place(places: list[list[Any]], latitude: float, longitude: float) -> tuple[str, str] | None:
+    """The place whose centre is nearest, as (BAG code like "wp3594", name), or None.
+
+    Like the KNMI app's own place list: the place code is what the app needs for
+    local warnings.
+    """
+    best, best_km = None, PLACE_MAX_KM
+    scale = math.cos(math.radians(latitude))
+    for code, name, lat, lon in places:
+        km = math.hypot((lat - latitude) * 111.0, (lon - longitude) * 111.0 * scale)
+        if km < best_km:
+            best, best_km = (code, name), km
+    return best
 
 
 class WeerberichtError(Exception):
@@ -136,29 +162,6 @@ class WeerberichtClient:
     async def local_alert(self, alert_id: str) -> dict[str, Any]:
         """A local warning in full: headline, description, the parts with their areas."""
         return await self._get("alerts/local", {"id": alert_id})
-
-    async def locality(self, latitude: float, longitude: float) -> str | None:
-        """The BAG place code of a coordinate ("wp3594" for Amsterdam), or None.
-
-        Looked up with PDOK; the nearest place counts for a location outside a
-        built-up area.
-        """
-        try:
-            async with self._session.get(
-                PDOK_REVERSE_URL,
-                params={"lat": str(latitude), "lon": str(longitude), "type": "woonplaats",
-                        "rows": "1", "fl": "woonplaatscode,woonplaatsnaam"},
-                headers={"User-Agent": USER_AGENT},
-                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
-            ) as resp:
-                if resp.status >= 400:
-                    raise WeerberichtConnectionError(f"PDOK: HTTP {resp.status}")
-                data = await resp.json(content_type=None)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            raise WeerberichtConnectionError(f"PDOK: {err}") from err
-        docs = (data.get("response") or {}).get("docs") or []
-        code = str(docs[0].get("woonplaatscode") or "") if docs else ""
-        return f"wp{int(code):04d}" if code.isdigit() else None
 
     async def precipitation_run(self) -> str:
         """Time of the latest rain radar run (needed to ask for the rain graph)."""

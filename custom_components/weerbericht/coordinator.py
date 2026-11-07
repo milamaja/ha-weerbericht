@@ -112,7 +112,7 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         region: str,
         latitude: float,
         longitude: float,
-        locality: str | None,
+        place: tuple[str, str] | None,
     ) -> None:
         super().__init__(
             hass,
@@ -126,8 +126,8 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.region = region
         self.latitude = latitude
         self.longitude = longitude
-        # BAG place code for the local warnings; None until PDOK has answered.
-        self.locality = locality
+        # BAG place code and name for the local warnings; None outside the Netherlands.
+        self.locality, self.locality_name = place if place else (None, None)
         # Dutch (the KNMI's own texts) unless English is chosen in the settings.
         self.language = entry.options.get(CONF_WARNING_LANGUAGE, "nl")
         self.rain: WeerberichtRainCoordinator | None = None
@@ -135,13 +135,6 @@ class WeerberichtCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._local_texts: dict[str, dict[str, Any]] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
-        if not self.locality:
-            # Not found at setup (PDOK unreachable): try again; kept in memory,
-            # stored on the next start.
-            try:
-                self.locality = await self.client.locality(self.latitude, self.longitude)
-            except WeerberichtError as err:
-                _LOGGER.debug("Place code for local warnings still unknown: %s", err)
         try:
             summary = await self.client.weather(self.cell, self.region, self.locality)
             details: dict[str, dict[str, Any]] = {}

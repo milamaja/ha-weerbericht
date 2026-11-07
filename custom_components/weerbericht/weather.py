@@ -145,6 +145,7 @@ class WeerberichtWeather(WeerberichtEntity, WeatherEntity):
             "grid_cell": self.coordinator.cell,
             "region": self.coordinator.region,
             "locality": self.coordinator.locality,
+            "locality_name": self.coordinator.locality_name,
         }
 
     async def async_forecast_daily(self) -> list[Forecast] | None:

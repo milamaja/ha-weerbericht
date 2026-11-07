@@ -46,7 +46,7 @@ Or go to **Settings, Devices & services, Add integration** and search for **Weer
 - **Latitude / Longitude**: default to your home location. The forecast is per grid cell of roughly 9 km, the same cells the app uses.
 - **Warning region**: the province used for weather alerts that are still issued per province.
 
-Since November 2026 the KNMI warns for the area where the weather actually happens, no longer for whole provinces. For those local warnings the integration needs the place (woonplaats) of the location: on the first start it looks up its BAG code once with [PDOK](https://www.pdok.nl), the government's free location service (only the coordinate is sent), and stores it with the location. Province warnings and local warnings both show up.
+Since November 2026 the KNMI warns for the area where the weather actually happens, no longer for whole provinces. For those local warnings the integration needs the place (woonplaats) of the location. Like the KNMI app it carries a list of all Dutch places with their BAG codes (from the [BAG](https://www.kadaster.nl/zakelijk/registraties/basisregistraties/bag), the Kadaster's open register, via [PDOK](https://www.pdok.nl)) and takes the place whose centre is nearest to the location; nothing is looked up online. The place is shown in the weather entity's `locality_name` attribute. Province warnings and local warnings both show up.
 
 You can add the integration more than once for several locations.
 
