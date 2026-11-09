@@ -13,7 +13,7 @@ For each configured location:
 - A `weather` entity with the current weather, an hourly forecast (about 60 hours) and a daily forecast (7 days with weather type, plus 8 more days from the 14-day outlook with temperature and precipitation only). Values match the KNMI app: temperature, precipitation amount and chance, wind speed and gusts in km/h, wind direction, UV index.
 - Sensors: temperature now, maximum and minimum of today, precipitation today, hours of sunshine today, UV index, heat index (hittekracht), weather alert level, weather alert text, and a Dutch weather description ("Opklaringen", "Lichte bui, afgewisseld door zon", ...).
 - Expected rain for the next 2 hours on your location, from the KNMI app's rain graph (radar nowcast in 5-minute steps): an **Expected rain** sensor with the total in mm and the 5-minute series in its `forecast` attribute (plus the last hour in `past`, and `rain_start`, `rain_end` and `max_intensity`), and a **Rain intensity** sensor with the current intensity in mm/h. Both update every 5 minutes.
-- A `camera` entity with the animated rain radar of the Netherlands (the loop published on knmi.nl, a new image every 5 minutes), with a small house on your location so you can see where the rain is heading.
+- Two `camera` entities with the animated rain radar of the Netherlands from the KNMI app (the last hour, a new image every 5 minutes), with the time and a small house on your location so you can see where the rain is heading: **Rain radar** on a map in the colours of knmi.nl with the KNMI rain colours, and **Rain radar dark** on a dark map with the rain from white (light) to dark blue (heavy). The **Weerbericht radar** card shows the one that fits your theme.
 - A **Weerbericht card** for your dashboard. It looks like Home Assistant's own weather card, but shows every KNMI app weather type: showers, thunder, snow and hail with the sun or the moon behind the cloud, and a moon instead of a sun after sunset. It is installed together with the integration, no separate download. Tapping it opens a detail popup with more information than Home Assistant's own weather dialog.
 - Its own integration icon (Home Assistant 2026.3 and newer).
 
@@ -21,15 +21,15 @@ The weather alert sensors follow the KNMI code colours: `none`, `yellow`, `orang
 
 ## Installation
 
-### HACS (custom repository)
+### Marketplace
 
-[![Open your Home Assistant instance and open this repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=milamaja&repository=ha-weerbericht&category=integration)
+[![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=milamaja&repository=ha-weerbericht&category=integration)
 
-The button opens this repository in HACS (it uses [My Home Assistant](https://www.home-assistant.io/integrations/my/), which is on by default). Or add it by hand:
+The button opens this repository in the Marketplace of your Home Assistant (it uses [My Home Assistant](https://www.home-assistant.io/integrations/my/), which is on by default). Or add it by hand:
 
-1. In HACS, open the menu (three dots, top right) and choose **Custom repositories**.
-2. Add `https://github.com/milamaja/ha-weerbericht` with category **Integration**.
-3. Install **Weerbericht** and restart Home Assistant.
+1. Go to **Settings, Marketplace** and select **Add from link** (top right).
+2. Enter `milamaja/ha-weerbericht` and select **Add**. If you have not connected GitHub to the Marketplace yet, it asks you to do that first.
+3. Open **Weerbericht** and install it. When Home Assistant needs a restart, the Marketplace tells you.
 
 ### Manual
 
@@ -211,6 +211,16 @@ The tile state shows the KNMI warning text. The `hide_state` on the green tile h
 
 <p><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-radar.png" width="400" alt="KNMI rain radar of the Netherlands with a house marker at the configured location"></p>
 
+The **Weerbericht radar** card shows the light radar with a light theme and the dark one with a dark theme, and switches along when your theme does. Set `appearance` to `light` or `dark` to always show the same one (also in the card editor).
+
+```yaml
+type: custom:weerbericht-radar-card
+entity: camera.weerbericht_rain_radar
+appearance: auto  # auto, light or dark
+```
+
+Each radar is also a camera of its own, for any picture card:
+
 ```yaml
 type: picture-entity
 entity: camera.weerbericht_rain_radar
@@ -227,7 +237,7 @@ show_name: false
 - Your coordinates are converted to the app's forecast grid cell (grid "A", 35 by 30 cells over the Netherlands). The cell is shown as the `grid_cell` attribute of the weather entity.
 - KNMI weather type codes are mapped to Home Assistant conditions. Night variants map to `clear-night` and `partlycloudy`.
 - The rain graph is polled every 5 minutes (two small requests), only while one of the rain sensors is enabled. Like the app, it uses the 1 km radar grid (cell `B...`, in the radar projection) instead of the 9 km forecast cell, so a shower a few kilometres away does not count as rain at your place.
-- The radar image is fetched only when a dashboard asks for it, and cached for 5 minutes. The house is drawn on each frame of the loop inside Home Assistant; your location never leaves your system.
+- The radars are made inside Home Assistant from the KNMI app's radar images: one small image (about 10 KB) per 5 minutes with only the rain, in the Dutch RD grid. The images are fetched only when a dashboard asks for a radar, each one only once for both radars, and laid on a map that comes with the integration (made with `tools/build_radar_map.py` from Natural Earth). The dark radar replaces the rain colours with its white-to-blue scale. The house is drawn inside Home Assistant too; your location never leaves your system.
 
 ## Limitations
 
@@ -237,7 +247,7 @@ show_name: false
 
 ## Attribution
 
-Weather data and radar image: KNMI (Koninklijk Nederlands Meteorologisch Instituut), available under their open data terms. The card's icons and the integration icon are made from the weather icons of the [Home Assistant frontend](https://github.com/home-assistant/frontend) (Apache License 2.0). KNMI is a name of the Dutch national weather service and is used here only to identify the data source.
+Weather data and radar images: KNMI (Koninklijk Nederlands Meteorologisch Instituut), available under their open data terms. The radar maps are made with [Natural Earth](https://www.naturalearthdata.com) (public domain). The card's icons and the integration icon are made from the weather icons of the [Home Assistant frontend](https://github.com/home-assistant/frontend) (Apache License 2.0). KNMI is a name of the Dutch national weather service and is used here only to identify the data source.
 
 ## License
 

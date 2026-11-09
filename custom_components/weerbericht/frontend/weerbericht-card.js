@@ -36,7 +36,7 @@ const P = {
   "bolt": "m 9.9252695,10.935875 -1.6483986,2.341014 1.1170184,0.05929 -1.2169864,2.02141 3.0450261,-2.616159 H 9.8864918 L 10.97937,11.294651 10.700323,10.79794 h -0.508706 l -0.2663475,0.137936"
 };
 
-const CARD_VERSION = "1.7.32";
+const CARD_VERSION = "1.7.33";
 
 // KNMI app weather type -> [sky, precipitation, lightning, night]
 //   sky: sun | moon | part | cloud | fog | windy
@@ -1260,6 +1260,116 @@ class WeerberichtRainCard extends HTMLElement {
   }
 }
 
+// The light and the dark radar camera of one location: the location of the
+// given camera, or else the first Weerbericht location.
+function radarCameras(hass, entityId) {
+  const cameras = Object.values(hass?.entities || {}).filter(
+    (e) => e.platform === "weerbericht" && e.entity_id.startsWith("camera."));
+  const device = hass?.entities?.[entityId]?.device_id || cameras[0]?.device_id;
+  const find = (key) => cameras.find((e) => e.device_id === device && e.translation_key === key)?.entity_id;
+  return { light: find("radar") || entityId, dark: find("radar_dark") || entityId };
+}
+
+// The rain radar, light or dark like the theme: "type: custom:weerbericht-radar-card".
+// Each location has two radar cameras, the loop of knmi.nl (light) and the KNMI
+// app's radar on a dark map. The card shows the one that fits the theme, unless
+// "appearance" is set to light or dark.
+class WeerberichtRadarCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+
+  static getConfigForm() {
+    const nl = /^nl/i.test(document.querySelector("home-assistant")?.hass?.locale?.language || navigator.language || "");
+    const t = (en, dutch) => (nl ? dutch : en);
+    const LABELS = {
+      entity: t("Rain radar", "Neerslagradar"),
+      appearance: t("Light or dark", "Licht of donker"),
+    };
+    return {
+      schema: [
+        { name: "entity", selector: { entity: { domain: "camera", integration: "weerbericht" } } },
+        { name: "appearance", default: "auto", selector: { select: { mode: "dropdown", options: [
+          { value: "auto", label: t("Like the theme", "Zoals het thema") },
+          { value: "light", label: t("Light", "Licht") },
+          { value: "dark", label: t("Dark", "Donker") },
+        ] } } },
+      ],
+      computeLabel: (schema) => LABELS[schema.name],
+    };
+  }
+
+  static getStubConfig(hass) {
+    const { light } = radarCameras(hass);
+    return light ? { entity: light } : {};
+  }
+
+  setConfig(config) {
+    this._config = { appearance: "auto", ...(config || {}) };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  getCardSize() { return 7; }
+
+  getGridOptions() { return { columns: 12, rows: "auto", min_columns: 4 }; }
+
+  connectedCallback() {
+    // The cameras make a new loop every 5 minutes; ask for it once a minute.
+    this._timer = setInterval(() => this._render(), 60000);
+    this._render();
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._timer);
+  }
+
+  _camera() {
+    const { light, dark } = radarCameras(this._hass, this._config.entity);
+    const mode = this._config.appearance;
+    const darkTheme = mode === "dark" || (mode !== "light" && this._hass.themes?.darkMode === true);
+    return darkTheme ? dark : light;
+  }
+
+  _render() {
+    if (!this._config || !this._hass) return;
+    if (!this.shadowRoot.querySelector("ha-card")) {
+      this.shadowRoot.innerHTML = `<style>
+        ha-card { overflow: hidden; cursor: pointer; }
+        img { display: block; width: 100%; height: auto; }
+        .msg { color: var(--secondary-text-color); font-size: 14px; padding: 16px; }
+      </style><ha-card><img alt=""><div class="msg" hidden></div></ha-card>`;
+      this.shadowRoot.querySelector("ha-card").addEventListener("click", () => {
+        const entityId = this._camera();
+        if (entityId) {
+          this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId } }));
+        }
+      });
+    }
+    const img = this.shadowRoot.querySelector("img");
+    const msg = this.shadowRoot.querySelector(".msg");
+    const entityId = this._camera();
+    const state = entityId ? this._hass.states[entityId] : undefined;
+    const picture = state?.attributes?.entity_picture;
+    img.hidden = !picture;
+    msg.hidden = !!picture;
+    if (!picture) {
+      msg.textContent = isNl(this._hass) ? "Geen neerslagradar gevonden" : "No rain radar found";
+      return;
+    }
+    const src = `${picture}${picture.includes("?") ? "&" : "?"}t=${Math.floor(Date.now() / 60000)}`;
+    if (img.getAttribute("src") !== src) {
+      img.setAttribute("src", src);
+      img.alt = state.attributes.friendly_name || entityId;
+    }
+  }
+}
+
 // Home Assistant installs a scoped custom element registry polyfill (needed in
 // Firefox) while the page loads. A definition made before that is invisible to
 // the polyfilled registry, so register again on whatever registry is current
@@ -1267,9 +1377,10 @@ class WeerberichtRainCard extends HTMLElement {
 // because a registry refuses a constructor it has seen before.
 const TAG = "weerbericht-card";
 const RAIN_TAG = "weerbericht-rain-card";
+const RADAR_TAG = "weerbericht-radar-card";
 function register() {
   const registry = window.customElements;
-  for (const [tag, base] of [[TAG, WeerberichtCard], [RAIN_TAG, WeerberichtRainCard]]) {
+  for (const [tag, base] of [[TAG, WeerberichtCard], [RAIN_TAG, WeerberichtRainCard], [RADAR_TAG, WeerberichtRadarCard]]) {
     if (registry.get(tag)) continue;
     try {
       registry.define(tag, class extends base {});
@@ -1296,6 +1407,13 @@ if (!window.__weerberichtCardAnnounced) {
     type: RAIN_TAG,
     name: "Weerbericht rain",
     description: "Expected rain for the next 2 hours, like the KNMI app's rain graph.",
+    preview: true,
+    documentationURL: "https://github.com/milamaja/ha-weerbericht",
+  });
+  window.customCards.push({
+    type: RADAR_TAG,
+    name: "Weerbericht radar",
+    description: "The rain radar, light or dark like your theme.",
     preview: true,
     documentationURL: "https://github.com/milamaja/ha-weerbericht",
   });

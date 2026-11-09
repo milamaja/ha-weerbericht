@@ -24,6 +24,9 @@
     "camera": {
       "radar": {
         "name": "Neerslagradar"
+      },
+      "radar_dark": {
+        "name": "Neerslagradar donker"
       }
     },
     "sensor": {

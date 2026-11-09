@@ -36,9 +36,10 @@ UPDATE_INTERVAL = timedelta(minutes=20)
 # two hours back and two hours ahead, a new run every 5 minutes.
 RAIN_INTERVAL = timedelta(minutes=5)
 
-# National precipitation radar loop as published on knmi.nl (no key needed),
-# a new image every 5 minutes.
-RADAR_URL = "https://cdn.knmi.nl/knmi/map/page/weer/actueel-weer/neerslagradar/WWWRADAR_loop.gif"
+# Radar images of the KNMI app (no key needed): one per 5 minutes, only the
+# rain. The radar loops show the last hour, like the one on knmi.nl.
+RADAR_FRAMES_URL = f"{BASE_URL}/precipitation/radar"
+RADAR_FRAMES = 13
 RADAR_INTERVAL = 300
 
 # Forecast grid "A" of the KNMI app: a 35 x 30 grid of roughly 9 km cells

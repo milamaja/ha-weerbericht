@@ -1,8 +1,8 @@
-"""Rain radar camera: the animated radar loop published on knmi.nl."""
+"""Rain radar cameras: the KNMI app's radar of the last hour, on a light and on a dark map."""
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 import aiohttp
@@ -19,13 +19,14 @@ from .const import (
     ATTRIBUTION,
     CONF_RADAR_MARKER,
     DOMAIN,
+    RADAR_FRAMES,
+    RADAR_FRAMES_URL,
     RADAR_INTERVAL,
-    RADAR_URL,
     REQUEST_TIMEOUT,
     USER_AGENT,
 )
 from .coordinator import WeerberichtConfigEntry
-from .radar_marker import mark_location
+from .radar_image import DARK, LIGHT, RadarStyle, build_loop
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,36 +36,120 @@ async def async_setup_entry(
     entry: WeerberichtConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    async_add_entities([WeerberichtRadar(hass, entry)])
+    frames = RadarFrames(hass)
+    async_add_entities(
+        [
+            WeerberichtRadar(entry, frames, LIGHT, "radar", "radar"),
+            WeerberichtRadar(entry, frames, DARK, "radar_dark", "radar-dark"),
+        ]
+    )
+
+
+class RadarFrames:
+    """The KNMI app's radar images of the last hour, shared by the radars of a location.
+
+    The list of images is asked for at most once per RADAR_INTERVAL, and an
+    image is downloaded only once. When the KNMI app can not be reached, the
+    images already there are used, and it is tried again after the interval.
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._session = async_get_clientsession(hass)
+        self._images: dict[str, bytes] = {}
+        self._frames: list[tuple[datetime, bytes]] = []
+        self._checked: datetime | None = None
+        self._lock = asyncio.Lock()
+
+    async def async_frames(self) -> list[tuple[datetime, bytes]]:
+        """The radar images of the last hour (local time, PNG), oldest first."""
+        async with self._lock:
+            now = dt_util.utcnow()
+            if self._checked is None or now - self._checked >= timedelta(seconds=RADAR_INTERVAL):
+                self._checked = now
+                try:
+                    self._frames = await self._async_fetch()
+                except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, TypeError, ValueError) as err:
+                    _LOGGER.warning("Rain radar: %s", err)
+            return self._frames
+
+    def _get(self, url: str):  # noqa: ANN202 - aiohttp's request context manager
+        return self._session.get(
+            url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
+        )
+
+    async def _async_fetch(self) -> list[tuple[datetime, bytes]]:
+        async with self._get(RADAR_FRAMES_URL) as resp:
+            resp.raise_for_status()
+            listing = await resp.json(content_type=None)
+        observed = [
+            (dt_util.parse_datetime(frame["time"]), frame["links"]["detail"])
+            for frame in listing["frames"]
+            if "/observations/" in frame["links"]["detail"]
+        ][-RADAR_FRAMES:]
+        missing = [url for _, url in observed if url not in self._images]
+        results = await asyncio.gather(*(self._async_image(url) for url in missing))
+        for url, png in zip(missing, results):
+            if png is not None:
+                self._images[url] = png
+        wanted = {url for _, url in observed}
+        self._images = {url: png for url, png in self._images.items() if url in wanted}
+        return [
+            (dt_util.as_local(moment), self._images[url])
+            for moment, url in observed
+            if moment is not None and url in self._images
+        ]
+
+    async def _async_image(self, url: str) -> bytes | None:
+        """One radar image; None when it can not be had now (tried again next time)."""
+        try:
+            async with self._get(url) as resp:
+                if resp.status != 200:
+                    _LOGGER.debug("Rain radar: HTTP %s for %s", resp.status, url)
+                    return None
+                return await resp.read()
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.debug("Rain radar: %s for %s", err, url)
+            return None
 
 
 class WeerberichtRadar(Camera):
-    """Serves the national precipitation radar loop (GIF, refreshed every 5 minutes).
+    """The rain radar of the last hour as an animated GIF, light or dark.
 
-    The image is fetched on demand and cached for RADAR_INTERVAL, so an idle
-    dashboard costs nothing and a busy one still makes at most one request per
-    interval. Unless switched off in the options, a small house marks the
-    configured location.
+    Made from the KNMI app's radar images, with the time on every frame and,
+    unless switched off in the options, a small house on the location. It is
+    made only when a dashboard asks for it, and kept until a new radar image
+    is there, so an idle dashboard costs nothing.
     """
 
     _attr_attribution = ATTRIBUTION
     _attr_has_entity_name = True
-    _attr_translation_key = "radar"
-    _attr_content_type = "image/gif"
 
-    def __init__(self, hass: HomeAssistant, entry: WeerberichtConfigEntry) -> None:
+    def __init__(
+        self,
+        entry: WeerberichtConfigEntry,
+        frames: RadarFrames,
+        style: RadarStyle,
+        translation_key: str,
+        unique_suffix: str,
+    ) -> None:
         super().__init__()
-        self._session = async_get_clientsession(hass)
-        self._attr_unique_id = f"{entry.entry_id}-radar"
+        # Camera sets image/jpeg in its __init__; a GIF says so, and is not
+        # sent through the JPEG scaler when a card asks for a smaller size.
+        self.content_type = "image/gif"
+        self._attr_translation_key = translation_key
+        self._attr_unique_id = f"{entry.entry_id}-{unique_suffix}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
             manufacturer="KNMI",
             entry_type=DeviceEntryType.SERVICE,
         )
+        self._frames = frames
+        self._style = style
         self._image: bytes | None = None
-        self._fetched = None
-        self._last_modified: str | None = None
+        self._latest: datetime | None = None
         self._lock = asyncio.Lock()
         self._marker: tuple[float, float] | None = None
         if entry.options.get(CONF_RADAR_MARKER, True):
@@ -72,46 +157,27 @@ class WeerberichtRadar(Camera):
 
     @property
     def extra_state_attributes(self) -> dict[str, str | None]:
-        return {"source": RADAR_URL, "last_modified": self._last_modified}
+        return {
+            "source": RADAR_FRAMES_URL,
+            "radar_time": self._latest.isoformat() if self._latest else None,
+        }
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         async with self._lock:
-            now = dt_util.utcnow()
-            if self._image is not None and self._fetched is not None:
-                if now - self._fetched < timedelta(seconds=RADAR_INTERVAL):
-                    return self._image
-            headers = {"User-Agent": USER_AGENT}
-            if self._last_modified:
-                headers["If-Modified-Since"] = self._last_modified
+            frames = await self._frames.async_frames()
+            if not frames or (self._image is not None and frames[-1][0] == self._latest):
+                return self._image
             try:
-                async with self._session.get(
-                    RADAR_URL,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
-                ) as resp:
-                    if resp.status == 304 and self._image is not None:
-                        self._fetched = now
-                        return self._image
-                    if resp.status != 200:
-                        _LOGGER.warning("Radar image: HTTP %s", resp.status)
-                        return self._image
-                    self._image = await self._mark(await resp.read())
-                    self._last_modified = resp.headers.get("Last-Modified")
-                    self._fetched = now
-            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-                _LOGGER.warning("Radar image: %s", err)
+                credit = "Bron: KNMI" if self.hass.config.language.startswith("nl") else "Data source: KNMI"
+                image = await self.hass.async_add_executor_job(
+                    build_loop, frames, self._marker, self._style, credit
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Rain radar: could not draw the loop: %s", err)
+                return self._image
+            if image is not None:
+                self._image = image
+                self._latest = frames[-1][0]
             return self._image
-
-    async def _mark(self, image: bytes) -> bytes:
-        """Draw the house on the loop; on any problem serve the plain image."""
-        if self._marker is None:
-            return image
-        try:
-            return await self.hass.async_add_executor_job(
-                mark_location, image, *self._marker
-            )
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Radar image: no location marker: %s", err)
-            return image

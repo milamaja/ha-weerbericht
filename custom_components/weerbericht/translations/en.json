@@ -24,6 +24,9 @@
     "camera": {
       "radar": {
         "name": "Rain radar"
+      },
+      "radar_dark": {
+        "name": "Rain radar dark"
       }
     },
     "sensor": {
