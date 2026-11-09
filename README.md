@@ -209,7 +209,10 @@ The tile state shows the KNMI warning text. The `hide_state` on the green tile h
 
 ### Rain radar
 
-<p><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-radar.png" width="400" alt="KNMI rain radar of the Netherlands with a house marker at the configured location"></p>
+<table><tr>
+<td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-radar.png" width="380" alt="Rain radar of the Netherlands on a light map with the KNMI rain colours, the time and a house marker at the configured location"></td>
+<td><img src="https://raw.githubusercontent.com/milamaja/ha-weerbericht/main/images/rain-radar-dark.png" width="380" alt="The same moment on the dark radar, light rain in white and heavier rain in blue"></td>
+</tr><tr><td>Rain radar</td><td>Rain radar dark</td></tr></table>
 
 The **Weerbericht radar** card shows the light radar with a light theme and the dark one with a dark theme, and switches along when your theme does. Set `appearance` to `light` or `dark` to always show the same one (also in the card editor).
 
